@@ -9,8 +9,8 @@ import yaml
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel as DDP
 
-from model import PhysicsNormalizedTFNO
-from dataset import get_dataloaders
+from ..models.physics_normalized_tfno import PhysicsNormalizedTFNO
+from ..data.dataset import get_dataloaders
 
 
 def load_config(config_path):

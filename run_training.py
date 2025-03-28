@@ -48,6 +48,6 @@ if __name__ == "__main__":
         print(f"{key}: {value}")
 
     # Import and run training
-    from train import train
+    from src.training import train
 
     train(args.config, args.data)

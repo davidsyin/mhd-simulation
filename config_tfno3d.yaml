@@ -1,0 +1,75 @@
+###################
+## Model options
+model_params:
+  width: 16 # hidden_channels in TFNO3d
+  n_layers: 4 # n_layers in TFNO3d
+  modes1: 16 # x dimension modes
+  modes2: 16 # y dimension modes
+  modes3: 16 # t dimension modes
+  fc_dim: 128 # For lifting_channels and projection_channels
+  in_dim: 3 # u_x, u_y, A
+  out_dim: 3 # u_x, u_y, A
+  activation: "gelu"
+  pad_x: 0.10 # 10% padding in x direction
+  pad_y: 0.10 # 10% padding in y direction
+  pad_z: 0.00 # no padding in t direction
+  # Physics-aware normalization values
+  input_norm: [1.0, 1.0, 1.0e-5] # u_x, u_y, A normalization
+  output_norm: [1.0, 1.0, 1.0e-5] # u_x, u_y, A normalization
+  rank: 1.00 # Tensor factorization rank for Tucker
+  factorization: "tucker"
+
+###################
+## Dataset options
+dataset_params:
+  data_dir: "/work/hdd/bbvf/skacmaz/NODs_mhd_data"
+  data_file: "mhd_data_3channel.npy"
+  name: "MHD_TFNO3d"
+  num: 1000
+  num_train: 950
+  num_test: 50
+
+###################
+## Dataloader options
+train_loader_params:
+  batch_size: 16
+  shuffle: True
+  num_workers: 1
+  pin_memory: True
+
+val_loader_params:
+  batch_size: 16
+  shuffle: False
+  num_workers: 1
+  pin_memory: True
+
+test_loader_params:
+  batch_size: 16
+  shuffle: False
+  num_workers: 1
+  pin_memory: True
+
+###################
+## Optimizer options
+optimizer_params:
+  betas: [0.9, 0.999]
+  lr: 1.0e-3
+  milestones: [25, 50, 75, 100, 125]
+  gamma: 0.5
+
+###################
+## Train params
+train_params:
+  epochs: 100
+  ckpt_freq: 50
+  ckpt_path: "checkpoints/MHD_TFNO3d/model"
+  load_ckpt: "" # Leave empty to start from scratch
+
+###################
+## wandb params -- optional
+wandb_params:
+  wandb_dir: "/u/skacmaz/NeuralOperator_DiffusionModel/case_0_mhd/no_dm/fno/logs"
+  wandb_project: "MHD_PINO"
+  wandb_group: "MHD_TFNO3d"
+  wandb_num_plots: 2
+  wandb_plot_freq: 5

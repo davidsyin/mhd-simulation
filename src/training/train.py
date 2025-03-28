@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 from ..utils.config import load_config
 from ..models.model_factory import create_model
-from ..utils.loss_factory import create_loss
+from ..losses import create_loss
 from ..data.dataset import get_dataloaders
 from .trainers import (
     train_epoch,

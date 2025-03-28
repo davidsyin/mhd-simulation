@@ -1,12 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=mhd_no_train
 #SBATCH --account=bdwx-dtai-gh
-#SBATCH --partition=ghx4
+#SBATCH --partition=ghx4-interactive
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1                   # CPU cores per node -- max(num_workers)
-#SBATCH --gpus=3                              # Number of GPUs to allocate
+#SBATCH --gpus=1                              # Number of GPUs to allocate
 #SBATCH --time=00:05:00
-#SBATCH --mem=600G
+#SBATCH --mem=300G
 #SBATCH --output=slurm_logs/mhd_no_train_%j.log
 #SBATCH --error=slurm_logs/mhd_no_train_%j.err
 # #SBATCH --nodelist=gpua057 # Optional, but recommended if there's availability
@@ -22,6 +22,6 @@ conda activate NODs
 # wandb login
 
 # Run test
-python ./run_training.py --gpus 0,1,2
+python ./run_training.py # --gpus 0,1,2
 
 conda deactivate

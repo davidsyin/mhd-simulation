@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-from .factory import register_loss
+from .loss_factory import register_loss
 
 
 @register_loss("mse")

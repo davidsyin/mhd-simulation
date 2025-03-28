@@ -1,7 +1,5 @@
-"""
-Neural operator model implementations.
-"""
+"""Neural operator models for MHD simulations."""
 
-from .physics_normalized_tfno import PhysicsNormalizedTFNO
+from .model_factory import create_model, register_model, MODEL_REGISTRY
 
-__all__ = ["PhysicsNormalizedTFNO"]
+__all__ = ["create_model", "register_model", "MODEL_REGISTRY"]

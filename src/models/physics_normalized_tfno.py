@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from neuralop.models import TFNO3d
 
+from .model_factory import register_model
+
 
 class PhysicsNormalizedTFNO(nn.Module):
     def __init__(
@@ -86,3 +88,28 @@ class PhysicsNormalizedTFNO(nn.Module):
             x = x * self.output_norm.view(1, -1, 1, 1, 1)
 
         return x
+
+
+@register_model(model_type="tfno")
+def create_tfno_model(model_params):
+    """Create a standard PhysicsNormalizedTFNO model instance."""
+    model = PhysicsNormalizedTFNO(
+        modes1=model_params.get("modes1", 8),
+        modes2=model_params.get("modes2", 8),
+        modes3=model_params.get("modes3", 8),
+        width=model_params.get("width", 8),
+        n_layers=model_params.get("n_layers", 4),
+        in_dim=model_params.get("in_dim", 3),
+        out_dim=model_params.get("out_dim", 3),
+        fc_dim=model_params.get("fc_dim", 128),
+        activation=model_params.get("activation", "gelu"),
+        pad_x=model_params.get("pad_x", 0.1),
+        pad_y=model_params.get("pad_y", 0.1),
+        pad_z=model_params.get("pad_z", 0.1),
+        input_norm=model_params.get("input_norm", [1.0, 1.0, 1.0]),
+        output_norm=model_params.get("output_norm", [1.0, 1.0, 1.0]),
+        rank=model_params.get("rank", 0.5),
+        factorization=model_params.get("factorization", "cp"),
+    )
+
+    return model

@@ -8,8 +8,6 @@ from tqdm import tqdm
 import yaml
 from torch.utils.tensorboard import SummaryWriter
 from torch.nn.parallel import DistributedDataParallel as DDP
-import torch.distributed as dist
-import torch.multiprocessing as mp
 
 from model import PhysicsNormalizedTFNO
 from dataset import get_dataloaders
@@ -48,7 +46,7 @@ def create_model(config):
     return model
 
 
-def custom_train_epoch_size_mismatch_fix(
+def train_epoch_distributed_size_mismatch_fix(
     model, config, train_loader, optimizer, criterion, num_gpus
 ):
     model.train()
@@ -366,18 +364,6 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
             plt.tight_layout()
             plt.savefig(os.path.join(plots_dir, f"sample_{i}.png"))
             plt.close(fig)
-
-
-def setup(rank, world_size):
-    """Initialize the distributed environment"""
-    os.environ["MASTER_ADDR"] = "localhost"
-    os.environ["MASTER_PORT"] = "12355"
-    dist.init_process_group("nccl", rank=rank, world_size=world_size)
-
-
-def cleanup():
-    """Clean up the distributed environment"""
-    dist.destroy_process_group()
 
 
 def train(config_path, data_path):

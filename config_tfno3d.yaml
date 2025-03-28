@@ -32,19 +32,19 @@ dataset_params:
 ###################
 ## Dataloader options
 train_loader_params:
-  batch_size: 16
+  batch_size: 32
   shuffle: True
   num_workers: 1
   pin_memory: True
 
 val_loader_params:
-  batch_size: 16
+  batch_size: 32
   shuffle: False
   num_workers: 1
   pin_memory: True
 
 test_loader_params:
-  batch_size: 16
+  batch_size: 32
   shuffle: False
   num_workers: 1
   pin_memory: True

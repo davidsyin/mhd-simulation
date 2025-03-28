@@ -1,3 +1,5 @@
+"""Functions for saving and loading model checkpoints during training."""
+
 import os
 import torch
 from torch.nn.parallel import DistributedDataParallel as DDP

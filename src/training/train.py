@@ -14,8 +14,8 @@ from .trainers import (
     train_epoch_distributed_size_mismatch_fix,
 )
 from .validators import validate, validate_size_mismatch_fix
-from .checkpoints import save_checkpoint, load_checkpoint
-from .visualization import save_prediction_plots
+from .train_utils import save_checkpoint, load_checkpoint
+from ..visualization import save_prediction_plots
 
 
 def train(config_path, data_path):

@@ -1,3 +1,5 @@
+"""Functions for visualizing model predictions and results."""
+
 import os
 import torch
 import numpy as np

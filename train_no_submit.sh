@@ -1,11 +1,11 @@
 #!/bin/bash
 #SBATCH --job-name=mhd_no_train
 #SBATCH --account=bdwx-dtai-gh
-#SBATCH --partition=ghx4-interactive
+#SBATCH --partition=ghx4
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1                   # CPU cores per node -- max(num_workers)
 #SBATCH --gpus=3                              # Number of GPUs to allocate
-#SBATCH --time=00:10:00
+#SBATCH --time=00:05:00
 #SBATCH --mem=600G
 #SBATCH --output=slurm_logs/mhd_no_train_%j.log
 #SBATCH --error=slurm_logs/mhd_no_train_%j.err

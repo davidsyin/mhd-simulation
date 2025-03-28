@@ -1,6 +1,8 @@
 ###################
 ## Model options
 model_params:
+  model_type: "tfno"
+  # model_variant: "time_evolution" # optional
   width: 16 # hidden_channels in TFNO3d
   n_layers: 4 # n_layers in TFNO3d
   modes1: 16 # x dimension modes
@@ -28,6 +30,25 @@ dataset_params:
   num: 1000
   num_train: 950
   num_test: 50
+
+###################
+## Loss options
+loss_params:
+  type: "mse"
+  reduction: "mean"
+
+# # Or a more complex example:
+# loss_params:
+#   type: "weighted_mse"
+#   weights: [1.0, 2.0, 0.5]  # Higher weight on second component
+#   reduction: "mean"
+#
+# # Physics-informed example:
+# loss_params:
+#   type: "physics_informed"
+#   data_loss_type: "mse"
+#   data_loss_weight: 1.0
+#   physics_loss_weight: 0.5
 
 ###################
 ## Dataloader options

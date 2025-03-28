@@ -1,7 +1,9 @@
 import os
 import argparse
 import torch
-import yaml
+
+from src.utils.config import load_config
+from src.training import train
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -39,15 +41,12 @@ if __name__ == "__main__":
         )
 
     # Load configuration
-    with open(args.config, "r") as f:
-        config = yaml.safe_load(f)
+    config = load_config(args.config)
 
     # Print model configuration
     print("\nModel Configuration:")
     for key, value in config["model_params"].items():
         print(f"{key}: {value}")
 
-    # Import and run training
-    from src.training import train
-
+    # Run training
     train(args.config, args.data)

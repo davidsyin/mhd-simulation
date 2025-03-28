@@ -8,7 +8,10 @@ if __name__ == "__main__":
         description="Train TFNO3d model for MHD simulation"
     )
     parser.add_argument(
-        "--config", type=str, default="config_tfno3d.yaml", help="Path to config file"
+        "--config",
+        type=str,
+        default="/u/skacmaz/NODs/configs/config_tfno3d.yaml",
+        help="Path to config file",
     )
     parser.add_argument(
         "--data",

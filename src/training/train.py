@@ -76,12 +76,16 @@ def train(config_path, data_path):
         model.parameters(), lr=optimizer_params["lr"], betas=optimizer_params["betas"]
     )
 
-    # Define scheduler
-    scheduler = optim.lr_scheduler.MultiStepLR(
-        optimizer,
-        milestones=optimizer_params["milestones"],
-        gamma=optimizer_params["gamma"],
-    )
+    # Define scheduler only if enabled in config
+    if optimizer_params.get("use_scheduler", True):
+        scheduler = optim.lr_scheduler.MultiStepLR(
+            optimizer,
+            milestones=optimizer_params["milestones"],
+            gamma=optimizer_params["gamma"],
+        )
+    else:
+        # Create a dummy scheduler that doesn't change the learning rate
+        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0)
 
     # Load checkpoint if specified
     train_params = config["train_params"]

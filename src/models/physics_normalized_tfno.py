@@ -6,6 +6,7 @@ from neuralop.models import TFNO3d
 from .model_factory import register_model
 
 
+# NOTE: Make the future changes under this wrapper-- S.K. Mar 29-- TO BE REMOVED
 class PhysicsNormalizedTFNO(nn.Module):
     def __init__(
         self,
@@ -29,6 +30,7 @@ class PhysicsNormalizedTFNO(nn.Module):
     ):
         super().__init__()
 
+        # TODO: Activation factory? -- S.K. Mar 29
         # Convert activation string to function
         if activation == "gelu":
             nonlinearity = F.gelu
@@ -44,6 +46,7 @@ class PhysicsNormalizedTFNO(nn.Module):
         if pad_z > 0 or pad_x > 0 or pad_y > 0:
             domain_padding = [pad_z, pad_x, pad_y]
 
+        # TODO: (Urgent) Normalization factory + multiple normalization techniques -- S.K. Mar 29
         # Setup normalization buffers
         if input_norm is not None:
             self.register_buffer("input_norm", torch.tensor(input_norm))

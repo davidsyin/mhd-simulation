@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from neuralop.models import FNO3d  # Using FNO3d as base for time evolution
+from neuralop.models import TFNO3d
 
 from .model_factory import register_model
 from ..normalizations import create_normalization
@@ -79,8 +79,8 @@ def create_tfno_time_evolution_model(model_params):
     if pad_z > 0 or pad_x > 0 or pad_y > 0:
         domain_padding = [pad_z, pad_x, pad_y]
 
-    # Create the FNO3d model for time evolution
-    model = FNO3d(
+    # Create the TFNO3d model for time evolution
+    model = TFNO3d(
         n_modes_height=model_params.get("modes1", 8),
         n_modes_width=model_params.get("modes2", 8),
         n_modes_depth=model_params.get("modes3", 8),

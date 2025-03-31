@@ -100,9 +100,21 @@ class MHDDataset(Dataset):
             x = x.unsqueeze(0)
             y = y.unsqueeze(0)
 
+            # # Debug print
+            # print("Before norm:")
+            # print("u", x[0, 0, 0, 0, 0])
+            # print("v", x[0, 1, 0, 0, 0])
+            # print("A", x[0, 2, 0, 0, 0])
+
             # Use the normalize method from the normalizer
             x = self.normalizer.normalize(x)
             y = self.normalizer.normalize(y)
+
+            # # Debug print
+            # print("After norm:")
+            # print("u", x[0, 0, 0, 0, 0])
+            # print("v", x[0, 1, 0, 0, 0])
+            # print("A", x[0, 2, 0, 0, 0])
 
             # Remove batch dimension
             x = x.squeeze(0)
@@ -145,8 +157,8 @@ def get_dataloaders(
                 normalization_config["normalization_params"][key] = (
                     stats[key].tolist() if hasattr(stats[key], "tolist") else stats[key]
                 )
+                print(f"{key}: {stats[key]}")
 
-            print(f"Loaded {len(stats.files)} statistics from {stats_file}")
         else:
             print(
                 "Warning: If they exist, statistics provided in the main config file will be used!"

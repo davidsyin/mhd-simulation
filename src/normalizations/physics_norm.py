@@ -31,9 +31,9 @@ class PhysicsNormalization(nn.Module):
         else:
             self.output_norm = None
 
-        # Debug prints
-        print(f"input_norm: {self.input_norm}")
-        print(f"output_norm: {self.output_norm}")
+        # # Debug prints
+        # print(f"input_norm: {self.input_norm}")
+        # print(f"output_norm: {self.output_norm}")
 
     def normalize(self, x):
         """Apply normalization to input"""

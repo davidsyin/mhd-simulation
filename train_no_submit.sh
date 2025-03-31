@@ -3,10 +3,11 @@
 #SBATCH --account=bdwx-dtai-gh
 #SBATCH --partition=ghx4-interactive
 #SBATCH --nodes=1
-#SBATCH --ntasks-per-node=1                   # CPU cores per node -- max(num_workers)
+#SBATCH --ntasks-per-node=1
+# #SBATCH --cpus-per-task=1
 #SBATCH --gpus=1                              # Number of GPUs to allocate
-#SBATCH --time=02:00:00
-#SBATCH --mem=300G
+#SBATCH --time=00:02:00
+# #SBATCH --mem=300G
 #SBATCH --output=slurm_logs/mhd_no_train_%j.log
 #SBATCH --error=slurm_logs/mhd_no_train_%j.err
 # #SBATCH --nodelist=gpua057 # Optional, but recommended if there's availability

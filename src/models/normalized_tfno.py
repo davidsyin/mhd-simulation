@@ -1,0 +1,107 @@
+"""Transformer Fourier Neural Operator model with flexible normalization."""
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from neuralop.models import TFNO3d
+
+from .model_factory import register_model
+from ..normalizations import create_normalization
+
+
+class NormalizedTFNO(nn.Module):
+    """
+    TFNO3d model with integrated normalization capabilities.
+
+    This class wraps the neuraloperator library's TFNO3d implementation
+    and adds configurable normalization for inputs and outputs.
+
+    Parameters
+    ----------
+    model : nn.Module
+        The core TFNO3d model
+    normalization : nn.Module
+        Normalization module to apply to inputs and outputs
+    """
+
+    def __init__(self, model, normalization=None):
+        super().__init__()
+        self.model = model
+        self.normalization = normalization
+
+    def forward(self, x):
+        # Apply normalization to input if defined
+        if self.normalization is not None:
+            x = self.normalization.normalize(x)
+
+        # Forward through neural operator model
+        x = self.model(x)
+
+        # Apply denormalization to output if defined
+        if self.normalization is not None:
+            x = self.normalization.denormalize(x)
+
+        return x
+
+
+@register_model(model_type="tfno")
+def create_tfno_model(model_params):
+    """Create a TFNO3d model from the neuraloperator library with normalization."""
+
+    # Convert activation string to function
+    activation = model_params.get("activation", "gelu")
+    if activation == "gelu":
+        non_linearity = F.gelu
+    elif activation == "relu":
+        non_linearity = F.relu
+    elif activation == "tanh":
+        non_linearity = torch.tanh
+    else:
+        raise ValueError(f"Activation {activation} not supported")
+
+    # Setup domain padding for 3D data [pad_z, pad_x, pad_y]
+    pad_z = model_params.get("pad_z", 0.0)
+    pad_x = model_params.get("pad_x", 0.0)
+    pad_y = model_params.get("pad_y", 0.0)
+    domain_padding = None
+    if pad_z > 0 or pad_x > 0 or pad_y > 0:
+        domain_padding = [pad_z, pad_x, pad_y]
+
+    # Create the TFNO3d model
+    model = TFNO3d(
+        n_modes_height=model_params.get("modes1", 8),
+        n_modes_width=model_params.get("modes2", 8),
+        n_modes_depth=model_params.get("modes3", 8),
+        hidden_channels=model_params.get("width", 8),
+        in_channels=model_params.get("in_dim", 3),
+        out_channels=model_params.get("out_dim", 3),
+        n_layers=model_params.get("n_layers", 4),
+        lifting_channels=model_params.get("fc_dim", 128),
+        projection_channels=model_params.get("fc_dim", 128),
+        non_linearity=non_linearity,
+        rank=model_params.get("rank", 0.5),
+        factorization=model_params.get("factorization", "tucker"),
+        domain_padding=domain_padding,
+        domain_padding_mode=model_params.get("domain_padding_mode", "symmetric"),
+    )
+
+    # Create normalization if specified
+    if model_params.get("use_normalization", True) and (
+        model_params.get("input_norm") is not None
+        or model_params.get("output_norm") is not None
+    ):
+        # Create a physics normalization
+        normalization_params = {
+            "type": "physics",
+            "input_norm": model_params.get("input_norm"),
+            "output_norm": model_params.get("output_norm"),
+        }
+
+        normalization = create_normalization(
+            {"normalization_params": normalization_params}
+        )
+    else:
+        normalization = None
+
+    # Wrap the model with normalization
+    return NormalizedTFNO(model, normalization)

@@ -63,7 +63,7 @@ def _register_all_models():
     constructor functions are registered with the registry.
     """
     # Import all model modules
-    from . import physics_normalized_tfno
-    from . import physics_normalized_tfno_time_evolution
+    from . import normalized_tfno
+    from . import time_evolution_tfno
 
     # Add imports for future model files here

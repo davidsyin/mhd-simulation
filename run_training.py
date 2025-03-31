@@ -18,7 +18,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--data",
         type=str,
-        default="/work/hdd/bbvf/skacmaz/NODs_mhd_data/mhd_data_3channel.npy",
+        default=None,
         help="Path to data file",
     )
     parser.add_argument(
@@ -42,6 +42,10 @@ if __name__ == "__main__":
 
     # Load configuration
     config = load_config(args.config)
+    if args.data is None:
+        args.data = (
+            config["dataset_params"]["data_dir"] + config["dataset_params"]["data_file"]
+        )
 
     # Print model configuration
     print("\nModel Configuration:")

@@ -83,6 +83,7 @@ def create_tfno_model(model_params):
         factorization=model_params.get("factorization", "tucker"),
         domain_padding=domain_padding,
         domain_padding_mode=model_params.get("domain_padding_mode", "symmetric"),
+        positional_embedding="grid",
     )
 
     # Create normalization if specified

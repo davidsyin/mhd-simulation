@@ -7,6 +7,7 @@ from neuralop.models import TFNO3d
 
 from .model_factory import register_model
 from ..normalizations import create_normalization
+from ..activations import create_activation
 
 
 class NormalizedTFNO(nn.Module):
@@ -48,16 +49,14 @@ class NormalizedTFNO(nn.Module):
 def create_tfno_model(model_params):
     """Create a TFNO3d model from the neuraloperator library with normalization."""
 
-    # Convert activation string to function
-    activation = model_params.get("activation", "gelu")
-    if activation == "gelu":
-        non_linearity = F.gelu
-    elif activation == "relu":
-        non_linearity = F.relu
-    elif activation == "tanh":
-        non_linearity = torch.tanh
+    # Get activation function using the factory
+    activation_config = model_params.get("activation", "gelu")
+    if isinstance(activation_config, str):
+        # For backward compatibility with string-based activation specification
+        non_linearity = create_activation(activation_config)
     else:
-        raise ValueError(f"Activation {activation} not supported")
+        # For new config-based activation specification
+        non_linearity = create_activation(activation_config)
 
     # Setup domain padding for 3D data [pad_z, pad_x, pad_y]
     pad_z = model_params.get("pad_z", 0.0)

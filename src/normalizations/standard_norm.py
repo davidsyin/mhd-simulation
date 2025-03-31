@@ -34,6 +34,10 @@ class StandardNormalization(nn.Module):
         else:
             self.std = None
 
+        # # Debug prints
+        # print(f"mean: {self.mean}")
+        # print(f"std: {self.std}")
+
     def normalize(self, x):
         """Apply normalization to input"""
         if self.mean is None or self.std is None:

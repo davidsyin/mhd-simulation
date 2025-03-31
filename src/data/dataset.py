@@ -161,7 +161,7 @@ def get_dataloaders(
 
         else:
             print(
-                "Warning: If they exist, statistics provided in the main config file will be used!"
+                "\n***WARNING: If they exist, statistics provided in the main config file will be used! Make sure you are providing correct stats for the correct normalization option!***\n"
             )
 
     # Print parameters for debugging

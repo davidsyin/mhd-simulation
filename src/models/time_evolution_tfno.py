@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from neuralop.models import TFNO3d
 
 from .model_factory import register_model
-from ..normalizations import create_normalization
 from ..activations import create_activation
 
 
@@ -27,17 +26,12 @@ class TimeEvolutionTFNO(nn.Module):
         Number of time steps to evolve the system
     """
 
-    def __init__(self, model, normalization=None, time_steps=1):
+    def __init__(self, model, time_steps=1):
         super().__init__()
         self.model = model
-        self.normalization = normalization
         self.time_steps = time_steps
 
     def forward(self, x):
-        # Apply normalization to input if defined
-        if self.normalization is not None:
-            x = self.normalization.normalize(x)
-
         # List to store outputs at each time step
         outputs = []
         current = x
@@ -51,10 +45,6 @@ class TimeEvolutionTFNO(nn.Module):
         # Stack outputs along a new time dimension
         x = torch.stack(outputs, dim=2)
 
-        # Apply denormalization to output if defined
-        if self.normalization is not None:
-            x = self.normalization.denormalize(x)
-
         return x
 
 
@@ -65,10 +55,8 @@ def create_tfno_time_evolution_model(model_params):
     # Get activation function using the factory
     activation_config = model_params.get("activation", "gelu")
     if isinstance(activation_config, str):
-        # For backward compatibility with string-based activation specification
         non_linearity = create_activation(activation_config)
     else:
-        # For new config-based activation specification
         non_linearity = create_activation(activation_config)
 
     # Setup domain padding for 3D data [pad_z, pad_x, pad_y]
@@ -98,25 +86,5 @@ def create_tfno_time_evolution_model(model_params):
         positional_embedding="grid",
     )
 
-    # Create normalization if specified
-    if model_params.get("use_normalization", True) and (
-        model_params.get("input_norm") is not None
-        or model_params.get("output_norm") is not None
-    ):
-        # Create a physics normalization
-        normalization_params = {
-            "type": "physics",
-            "input_norm": model_params.get("input_norm"),
-            "output_norm": model_params.get("output_norm"),
-        }
-
-        normalization = create_normalization(
-            {"normalization_params": normalization_params}
-        )
-    else:
-        normalization = None
-
     # Wrap the model with time evolution capabilities
-    return TimeEvolutionTFNO(
-        model, normalization, time_steps=model_params.get("time_steps", 1)
-    )
+    return TimeEvolutionTFNO(model, time_steps=model_params.get("time_steps", 1))

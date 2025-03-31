@@ -1,4 +1,4 @@
-###################
+####################
 ## Model options
 model_params:
   model_type: "tfno"
@@ -15,21 +15,30 @@ model_params:
   pad_x: 0.10 # 10% padding in x direction
   pad_y: 0.10 # 10% padding in y direction
   pad_z: 0.00 # no padding in t direction
-  # Physics-aware normalization values
-  input_norm: [1.0, 1.0, 1.0e-5] # u_x, u_y, A normalization
-  output_norm: [1.0, 1.0, 1.0e-5] # u_x, u_y, A normalization
   rank: 1.00 # Tensor factorization rank for Tucker
   factorization: "tucker"
 
 ###################
+## Normalization options at dataset level
+normalization_params:
+  type: "physics"
+  input_norm: [1.0, 1.0, 1.0e-5]
+  output_norm: [1.0, 1.0, 1.0e-5]
+  stats_file: "/u/skacmaz/NODs/stats/train_only_stats.npz"
+
+  # type: "minmax"
+  # feature_range: [0, 1]
+
+###################
 ## Dataset options
 dataset_params:
-  data_dir: "/work/hdd/bbvf/skacmaz/NODs_mhd_data"
-  data_file: "mhd_data_3channel.npy"
+  data_dir: "/work/hdd/begd/skacmaz/NODs_mhd_data_Re100/"
+  data_file: "mhd_data_3channel_Re100.npy"
   name: "MHD_TFNO3d"
   num: 1000
   num_train: 950
   num_test: 50
+  seed: 42
 
 ###################
 ## Loss options
@@ -53,19 +62,19 @@ loss_params:
 ###################
 ## Dataloader options
 train_loader_params:
-  batch_size: 32
+  batch_size: 1
   shuffle: True
   num_workers: 1
   pin_memory: True
 
 val_loader_params:
-  batch_size: 32
+  batch_size: 1
   shuffle: False
   num_workers: 1
   pin_memory: True
 
 test_loader_params:
-  batch_size: 32
+  batch_size: 1
   shuffle: False
   num_workers: 1
   pin_memory: True
@@ -74,14 +83,16 @@ test_loader_params:
 ## Optimizer options
 optimizer_params:
   betas: [0.9, 0.999]
-  lr: 1.0e-3
-  milestones: [25, 50, 75, 100, 125]
+  lr: 1.0e-2
+  # milestones: [25, 50, 75, 100, 125]
+  milestones: [50, 100, 150, 200, 225]
   gamma: 0.5
+  use_scheduler: true
 
 ###################
 ## Train params
 train_params:
-  epochs: 100
+  epochs: 300
   ckpt_freq: 50
   ckpt_path: "checkpoints/MHD_TFNO3d/model"
   load_ckpt: "" # Leave empty to start from scratch

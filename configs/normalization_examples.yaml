@@ -1,0 +1,27 @@
+# Model configuration with MinMax normalization
+model_params:
+  model_type: "tfno"
+  width: 16
+  n_layers: 4
+  # ... other model params ...
+
+
+# Use "minmax" instead of "min_max" to match the registered name
+normalization_params:
+  type: "minmax"  # This must match exactly what's registered
+  feature_range: [0, 1]
+  stats_file: ...
+
+
+# Model configuration with standard normalization
+model_params:
+  model_type: "tfno"
+  width: 16
+  n_layers: 4
+  # ... other model params ...
+
+# Standard normalization configuration
+normalization_params:
+  type: "standard"
+  mean: [0.0, 0.0, 0.0]
+  std: [1.0, 1.0, 1.0]

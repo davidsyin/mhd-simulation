@@ -34,7 +34,6 @@ def train(config_path, data_path):
 
     # Get GPU count
     n_gpus = torch.cuda.device_count()
-    print(f"Available GPUs: {n_gpus}")
 
     # Create logs directory
     wandb_config = config.get("wandb_params", {})
@@ -43,29 +42,46 @@ def train(config_path, data_path):
 
     # Initialize TensorBoard logger
     tb_writer = SummaryWriter(log_dir=os.path.join(log_dir, "tensorboard"))
-    print(f"TensorBoard logs will be saved to {os.path.join(log_dir, 'tensorboard')}")
+    print(
+        f"\nTensorBoard logs will be saved to {os.path.join(log_dir, 'tensorboard')}\n"
+    )
 
     # Get original batch size and create dataloaders
     batch_size = config["train_loader_params"]["batch_size"]
 
-    # When using custom multi-GPU, we'll manually split batches
+    # Get dataset parameters
+    train_ratio = config["dataset_params"]["num_train"] / (
+        config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
+    )
+    seed = config["dataset_params"].get("seed", 42)
+
+    # Create normalization config for dataset
+    normalization_config = None
+    if "normalization_params" in config:
+        # Prepare the normalization configuration for dataloaders
+        normalization_config = {"normalization_params": config["normalization_params"]}
+        print(
+            f"Using {config['normalization_params'].get('type', 'unknown')} normalization at dataset level"
+        )
+
+    # Create dataloaders with normalization and proper seed
     train_loader, val_loader, test_loader = get_dataloaders(
         data_path,
-        batch_size=batch_size * n_gpus,  # Load larger batches that we'll split
+        normalization_config=normalization_config,
+        batch_size=batch_size * n_gpus,
         num_workers=config["train_loader_params"]["num_workers"],
-        train_ratio=config["dataset_params"]["num_train"]
-        / (
-            config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-        ),
+        train_ratio=train_ratio,
+        seed=seed,
     )
 
-    # Create model
     model = create_model(config)
 
     # Move model to primary device
     model = model.to(device)
 
-    print(f"Model created with {sum(p.numel() for p in model.parameters())} parameters")
+    print(
+        f"\nModel created with {sum(p.numel() for p in model.parameters())} parameters\n"
+    )
 
     # Define loss function using the factory
     criterion = create_loss(config)

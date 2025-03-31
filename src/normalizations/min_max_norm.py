@@ -1,4 +1,4 @@
-"""Min-max normalization that scales data to [0,1] range."""
+"""Min-max normalization that scales data to a specified range."""
 
 import torch
 import torch.nn as nn
@@ -10,71 +10,79 @@ class MinMaxNormalization(nn.Module):
     """
     Min-max normalization that scales data to a specified range.
 
-    This normalization computes global min and max values for each channel
-    and scales the data to the specified range (default [0,1]).
+    This normalization scales each channel independently to a specified range
+    based on the provided per-channel min/max values.
 
     Args:
-        feature_range: Tuple of (min, max) for scaled output range
-        per_channel: Whether to normalize each channel separately
+        min_val: Pre-computed minimum values per channel
+        max_val: Pre-computed maximum values per channel
+        feature_range: Tuple of (min, max) for the output range
         eps: Small value to avoid division by zero
     """
 
-    def __init__(self, feature_range=(0, 1), per_channel=True, eps=1e-8):
+    def __init__(self, min_val=None, max_val=None, feature_range=(0, 1), eps=1e-8):
         super().__init__()
         self.feature_range = feature_range
-        self.per_channel = per_channel
         self.eps = eps
 
-        # These will be initialized during first call
-        self.register_buffer("data_min", None)
-        self.register_buffer("data_max", None)
-
-    def fit(self, x):
-        """Compute min and max values from data"""
-        if self.per_channel:
-            # Compute per-channel min/max
-            dims = tuple(range(2, x.dim()))  # Spatial dimensions
-            min_val = x.min(dim=0, keepdim=True)[0].min(dims, keepdim=True)[0]
-            max_val = x.max(dim=0, keepdim=True)[0].max(dims, keepdim=True)[0]
+        # Register min and max values as buffers
+        if min_val is not None:
+            self.register_buffer("min_val", torch.tensor(min_val))
         else:
-            # Global min/max
-            min_val = x.min().expand_as(x[[0]])
-            max_val = x.max().expand_as(x[[0]])
+            self.min_val = None
 
-        self.register_buffer("data_min", min_val)
-        self.register_buffer("data_max", max_val)
+        if max_val is not None:
+            self.register_buffer("max_val", torch.tensor(max_val))
+        else:
+            self.max_val = None
+
+        # # Debug prints
+        # print(f"minval:{self.min_val}")
+        # print(f"minval:{self.max_val}")
+        # print(f"range:{self.feature_range}")
 
     def normalize(self, x):
-        """Apply normalization to input"""
-        if self.data_min is None or self.data_max is None:
-            self.fit(x)
+        """Apply per-channel normalization to input"""
+        if self.min_val is None or self.max_val is None:
+            return x
 
-        x_std = (x - self.data_min) / (self.data_max - self.data_min + self.eps)
-        x_scaled = (
+        # Reshape for broadcasting with 5D tensor (batch, channels, t, x, y)
+        min_val = self.min_val.view(1, -1, 1, 1, 1)
+        max_val = self.max_val.view(1, -1, 1, 1, 1)
+
+        # Scale to [0, 1] first
+        x_std = (x - min_val) / (max_val - min_val + self.eps)
+
+        # Then scale to target range
+        return (
             x_std * (self.feature_range[1] - self.feature_range[0])
             + self.feature_range[0]
         )
 
-        return x_scaled
-
     def denormalize(self, x):
-        """Apply denormalization to output"""
-        if self.data_min is None or self.data_max is None:
-            raise RuntimeError("Cannot denormalize before calling normalize() first")
+        """Apply per-channel denormalization to output"""
+        if self.min_val is None or self.max_val is None:
+            return x
 
+        # Reshape for broadcasting with 5D tensor (batch, channels, t, x, y)
+        min_val = self.min_val.view(1, -1, 1, 1, 1)
+        max_val = self.max_val.view(1, -1, 1, 1, 1)
+
+        # Scale back from feature range to [0, 1]
         x_std = (x - self.feature_range[0]) / (
             self.feature_range[1] - self.feature_range[0]
         )
-        x_orig = x_std * (self.data_max - self.data_min) + self.data_min
 
-        return x_orig
+        # Then scale back to original range
+        return x_std * (max_val - min_val + self.eps) + min_val
 
 
 @register_normalization("minmax")
 def create_minmax_normalization(norm_params):
     """Create a min-max normalization."""
     return MinMaxNormalization(
+        min_val=norm_params.get("min_val"),
+        max_val=norm_params.get("max_val"),
         feature_range=norm_params.get("feature_range", (0, 1)),
-        per_channel=norm_params.get("per_channel", True),
         eps=norm_params.get("eps", 1e-8),
     )

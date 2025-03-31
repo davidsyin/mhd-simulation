@@ -1,15 +1,26 @@
+import os
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 
+from ..normalizations import create_normalization
+
 
 class MHDDataset(Dataset):
-    def __init__(self, data_path, split="train", train_ratio=0.95, seed=42):
+    def __init__(
+        self,
+        data_path,
+        normalization_config=None,
+        split="train",
+        train_ratio=0.95,
+        seed=42,
+    ):
         """
-        Dataset for MHD simulation data
+        Dataset for MHD simulation data with normalization support
 
         Args:
             data_path: Path to the numpy file with shape (num_samples, timesteps, nx, ny, channels)
+            normalization_config: Configuration dict for normalization
             split: 'train', 'val', or 'test'
             train_ratio: Ratio of data to use for training
             seed: Random seed for reproducibility
@@ -19,13 +30,30 @@ class MHDDataset(Dataset):
             self.data.shape
         )
 
+        # Create normalization module if specified
+        self.normalizer = None
+        if normalization_config:
+            self.normalizer = create_normalization(normalization_config)
+            # Debug print
+            # norm_type = normalization_config.get("normalization_params", {}).get(
+            #     "type", "unknown"
+            # )
+            # print(f"Using {norm_type} normalization at dataset level")
+
         # Set random seed for reproducibility
         np.random.seed(seed)
+        # Debug print
+        # print(f"Dataset using random seed: {seed} for {split} split")
 
         # Create train/val/test indices
         indices = np.random.permutation(self.num_samples)
         train_size = int(train_ratio * self.num_samples)
         val_size = int((1 - train_ratio) / 2 * self.num_samples)
+
+        # Debug print
+        # print(
+        #     f"Split sizes - Train: {train_size}, Val: {val_size}, Test: {self.num_samples - train_size - val_size}"
+        # )
 
         if split == "train":
             self.indices = indices[:train_size]
@@ -37,6 +65,8 @@ class MHDDataset(Dataset):
             raise ValueError(
                 f"Split {split} not recognized. Use 'train', 'val', or 'test'"
             )
+
+        print(f"Initialized {split} dataset with {len(self.indices)} samples")
 
     def __len__(self):
         return len(self.indices)
@@ -62,21 +92,93 @@ class MHDDataset(Dataset):
         x = torch.from_numpy(ic).float().permute(3, 0, 1, 2)  # Shape: (3, 1, 128, 128)
         y = (
             torch.from_numpy(data).float().permute(3, 0, 1, 2)
-        )  # Shape: (3, 101, A 128, 128)
+        )  # Shape: (3, 101, 128, 128)
+
+        # Apply normalization if specified
+        if self.normalizer:
+            # Add batch dimension for normalization
+            x = x.unsqueeze(0)
+            y = y.unsqueeze(0)
+
+            # Use the normalize method from the normalizer
+            x = self.normalizer.normalize(x)
+            y = self.normalizer.normalize(y)
+
+            # Remove batch dimension
+            x = x.squeeze(0)
+            y = y.squeeze(0)
 
         return x, y
 
 
-def get_dataloaders(data_path, batch_size=1, num_workers=4, train_ratio=0.95, seed=42):
-    """Create dataloaders for train, validation, and test sets"""
+def get_dataloaders(
+    data_path,
+    normalization_config=None,
+    batch_size=1,
+    num_workers=4,
+    train_ratio=0.95,
+    seed=42,
+):
+    """Create dataloaders for train, validation, and test sets with normalization support"""
+
+    # Process normalization config and load NPZ stats if needed
+    if normalization_config and "normalization_params" in normalization_config:
+        norm_params = normalization_config["normalization_params"]
+
+        # Check if there's a stats_file parameter
+        if "stats_file" in norm_params and norm_params["stats_file"].endswith(".npz"):
+            stats_file = norm_params["stats_file"]
+            # Check if file exists
+            if not os.path.exists(stats_file):
+                raise FileNotFoundError(f"Statistics file not found: {stats_file}")
+
+            print(f"Loading normalization statistics from {stats_file}")
+
+            # Load the .npz file
+            stats = np.load(stats_file)
+
+            # Create a copy of the config to avoid modifying the original
+            normalization_config = {"normalization_params": norm_params.copy()}
+
+            # Update normalization parameters with loaded values
+            for key in stats.files:
+                normalization_config["normalization_params"][key] = (
+                    stats[key].tolist() if hasattr(stats[key], "tolist") else stats[key]
+                )
+
+            print(f"Loaded {len(stats.files)} statistics from {stats_file}")
+        else:
+            print(
+                "Warning: If they exist, statistics provided in the main config file will be used!"
+            )
+
+    # Print parameters for debugging
+    print(f"Creating dataloaders with train_ratio={train_ratio}, seed={seed}")
+
+    # Create datasets with the processed normalization config
     train_dataset = MHDDataset(
-        data_path, split="train", train_ratio=train_ratio, seed=seed
+        data_path,
+        normalization_config=normalization_config,
+        split="train",
+        train_ratio=train_ratio,
+        seed=seed,
     )
-    val_dataset = MHDDataset(data_path, split="val", train_ratio=train_ratio, seed=seed)
+    val_dataset = MHDDataset(
+        data_path,
+        normalization_config=normalization_config,
+        split="val",
+        train_ratio=train_ratio,
+        seed=seed,
+    )
     test_dataset = MHDDataset(
-        data_path, split="test", train_ratio=train_ratio, seed=seed
+        data_path,
+        normalization_config=normalization_config,
+        split="test",
+        train_ratio=train_ratio,
+        seed=seed,
     )
 
+    # Create and return dataloaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,

@@ -25,5 +25,5 @@ log.txt
 events.out.tfevents*
 
 # Ignore job submission scripts
-*.sh
+# *.sh
 *.slurm

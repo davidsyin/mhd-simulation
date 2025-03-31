@@ -1,61 +1,43 @@
-"""Tensorized Fourier Neural Operator model with flexible normalization."""
+"""Tensorized Fourier Neural Operator model."""
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 from neuralop.models import TFNO3d
 
 from .model_factory import register_model
-from ..normalizations import create_normalization
 from ..activations import create_activation
 
 
 class NormalizedTFNO(nn.Module):
     """
-    TFNO3d model with integrated normalization capabilities.
+    TFNO3d model wrapper.
 
-    This class wraps the neuraloperator library's TFNO3d implementation
-    and adds configurable normalization for inputs and outputs.
+    This class wraps the neuraloperator library's TFNO3d implementation.
 
     Parameters
     ----------
     model : nn.Module
         The core TFNO3d model
-    normalization : nn.Module
-        Normalization module to apply to inputs and outputs
     """
 
-    def __init__(self, model, normalization=None):
+    def __init__(self, model):
         super().__init__()
         self.model = model
-        self.normalization = normalization
 
     def forward(self, x):
-        # Apply normalization to input if defined
-        if self.normalization is not None:
-            x = self.normalization.normalize(x)
-
         # Forward through neural operator model
-        x = self.model(x)
-
-        # Apply denormalization to output if defined
-        if self.normalization is not None:
-            x = self.normalization.denormalize(x)
-
-        return x
+        return self.model(x)
 
 
 @register_model(model_type="tfno")
 def create_tfno_model(model_params):
-    """Create a TFNO3d model from the neuraloperator library with normalization."""
+    """Create a TFNO3d model from the neuraloperator library."""
 
     # Get activation function using the factory
     activation_config = model_params.get("activation", "gelu")
     if isinstance(activation_config, str):
-        # For backward compatibility with string-based activation specification
         non_linearity = create_activation(activation_config)
     else:
-        # For new config-based activation specification
         non_linearity = create_activation(activation_config)
 
     # Setup domain padding for 3D data [pad_z, pad_x, pad_y]
@@ -85,23 +67,5 @@ def create_tfno_model(model_params):
         positional_embedding="grid",
     )
 
-    # Create normalization if specified
-    if model_params.get("use_normalization", True) and (
-        model_params.get("input_norm") is not None
-        or model_params.get("output_norm") is not None
-    ):
-        # Create a physics normalization
-        normalization_params = {
-            "type": "physics",
-            "input_norm": model_params.get("input_norm"),
-            "output_norm": model_params.get("output_norm"),
-        }
-
-        normalization = create_normalization(
-            {"normalization_params": normalization_params}
-        )
-    else:
-        normalization = None
-
-    # Wrap the model with normalization
-    return NormalizedTFNO(model, normalization)
+    # Wrap the model
+    return NormalizedTFNO(model)

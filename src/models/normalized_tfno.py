@@ -1,4 +1,4 @@
-"""Transformer Fourier Neural Operator model with flexible normalization."""
+"""Tensorized Fourier Neural Operator model with flexible normalization."""
 
 import torch
 import torch.nn as nn

@@ -9,7 +9,7 @@ from ..normalizations import create_normalization
 class MHDDataset(Dataset):
     def __init__(
         self,
-        data_path,
+        data,
         normalization_config=None,
         split="train",
         train_ratio=0.95,
@@ -19,13 +19,13 @@ class MHDDataset(Dataset):
         Dataset for MHD simulation data with normalization support
 
         Args:
-            data_path: Path to the numpy file with shape (num_samples, timesteps, nx, ny, channels)
+            data: Loaded numpy data with shape (num_samples, timesteps, nx, ny, channels)
             normalization_config: Configuration dict for normalization
             split: 'train', 'val', or 'test'
             train_ratio: Ratio of data to use for training
             seed: Random seed for reproducibility
         """
-        self.data = np.load(data_path)
+        self.data = data
         self.num_samples, self.timesteps, self.nx, self.ny, self.channels = (
             self.data.shape
         )
@@ -166,26 +166,26 @@ def get_dataloaders(
                 "\n***WARNING: If they exist, statistics provided in the main config file will be used! Make sure you are providing correct stats for the correct normalization option!***\n"
             )
 
-    # Print parameters for debugging
+    data = np.load(data_path)
     print(f"Creating dataloaders with train_ratio={train_ratio}, seed={seed}")
 
     # Create datasets with the processed normalization config
     train_dataset = MHDDataset(
-        data_path,
+        data,
         normalization_config=normalization_config,
         split="train",
         train_ratio=train_ratio,
         seed=seed,
     )
     val_dataset = MHDDataset(
-        data_path,
+        data,
         normalization_config=normalization_config,
         split="val",
         train_ratio=train_ratio,
         seed=seed,
     )
     test_dataset = MHDDataset(
-        data_path,
+        data,
         normalization_config=normalization_config,
         split="test",
         train_ratio=train_ratio,

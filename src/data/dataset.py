@@ -51,6 +51,8 @@ class MHDDataset(Dataset):
         val_size = int((1 - train_ratio) / 2 * self.num_samples)
 
         # Debug print
+        #
+        # print(f"indices:{indices}")
         # print(
         #     f"Split sizes - Train: {train_size}, Val: {val_size}, Test: {self.num_samples - train_size - val_size}"
         # )

@@ -60,6 +60,9 @@ def calculate_training_statistics(config_path, output_file=None):
     train_size = int(train_ratio * num_samples)
     train_indices = indices[:train_size]
 
+    # # Debug print
+    # print(f"indices: {indices}")
+
     print(f"Using {len(train_indices)} samples for statistics calculation")
 
     # Select only training data

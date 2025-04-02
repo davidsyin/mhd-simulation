@@ -1,4 +1,5 @@
 import os
+import math
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
@@ -48,7 +49,7 @@ class MHDDataset(Dataset):
         # Create train/val/test indices
         indices = np.random.permutation(self.num_samples)
         train_size = int(train_ratio * self.num_samples)
-        val_size = int((1 - train_ratio) / 2 * self.num_samples)
+        val_size = math.ceil((1 - train_ratio) / 2 * self.num_samples)
 
         # Debug print
         #

@@ -3,11 +3,11 @@
 model_params:
   model_type: "tfno"
   # model_variant: "time_evolution" # optional
-  width: 16 # hidden_channels in TFNO3d
+  width: 8 # hidden_channels in TFNO3d
   n_layers: 4 # n_layers in TFNO3d
-  modes1: 16 # x dimension modes
-  modes2: 16 # y dimension modes
-  modes3: 16 # t dimension modes
+  modes1: 8 # x dimension modes
+  modes2: 8 # y dimension modes
+  modes3: 8 # t dimension modes
   fc_dim: 128 # For lifting_channels and projection_channels
   in_dim: 3 # u_x, u_y, A
   out_dim: 3 # u_x, u_y, A

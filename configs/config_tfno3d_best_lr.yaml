@@ -1,0 +1,84 @@
+dataset_params:
+  data_dir: /work/hdd/begd/skacmaz/NODs_mhd_data_Re100/
+  data_file: mhd_data_3channel_Re100.npy
+  name: MHD_TFNO3d
+  num: 1000
+  num_test: 50
+  num_train: 950
+  seed: 42
+loss_params:
+  reduction: mean
+  type: mse
+model_params:
+  activation: gelu
+  factorization: tucker
+  fc_dim: 128
+  in_dim: 3
+  model_type: tfno
+  modes1: 8
+  modes2: 8
+  modes3: 8
+  n_layers: 4
+  out_dim: 3
+  pad_x: 0.1
+  pad_y: 0.1
+  pad_z: 0.0
+  rank: 1.0
+  width: 8
+normalization_params:
+  stats_file: /u/skacmaz/NODs/stats/train_only_stats.npz
+  type: standard
+optimizer_params:
+  betas:
+  - 0.9
+  - 0.999
+  factor: 0.5
+  lr: !!python/object/apply:numpy._core.multiarray.scalar
+  - !!python/object/apply:numpy.dtype
+    args:
+    - f8
+    - false
+    - true
+    state: !!python/tuple
+    - 3
+    - <
+    - null
+    - null
+    - null
+    - -1
+    - -1
+    - 0
+  - !!binary |
+    l1hbbRJFXT8=
+  mode: min
+  optimizer_type: adamw
+  patience: 10
+  scheduler_type: reducelr
+  use_scheduler: true
+  weight_decay: 0.01
+test_loader_params:
+  batch_size: 1
+  num_workers: 1
+  pin_memory: true
+  shuffle: false
+train_loader_params:
+  batch_size: 1
+  num_workers: 1
+  pin_memory: true
+  shuffle: true
+train_params:
+  ckpt_freq: 50
+  ckpt_path: checkpoints/MHD_TFNO3d/model
+  epochs: 300
+  load_ckpt: ''
+val_loader_params:
+  batch_size: 1
+  num_workers: 1
+  pin_memory: true
+  shuffle: false
+wandb_params:
+  wandb_dir: /u/skacmaz/NODs/logs
+  wandb_group: MHD_TFNO3d
+  wandb_num_plots: 2
+  wandb_plot_freq: 5
+  wandb_project: MHD_PINO

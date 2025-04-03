@@ -21,15 +21,15 @@ model_params:
 ###################
 ## Normalization options at dataset level
 normalization_params:
-  type: "physics"
-  input_norm: [1.0, 1.0, 2.5e-4]
-  output_norm: [1.0, 1.0, 2.5e-4]
-  # stats_file: "/u/skacmaz/NODs/stats/train_only_stats.npz"
+  # type: "physics"
+  # input_norm: [1.0, 1.0, 2.5e-4]
+  # output_norm: [1.0, 1.0, 2.5e-4]
+  stats_file: "/u/skacmaz/NODs/stats/train_only_stats.npz"
 
   # type: "minmax"
   # feature_range: [0, 1]
 
-  # type: "standard"
+  type: "standard"
   # # mean: [0.0, 0.0, 0.0] # Uncomment if you want to use your own stats
   # # std: [1.13536170e-01, 1.04062743e-01, 6.62853878e-05] # Uncomment if you want to use your own stats
 

@@ -5,7 +5,9 @@ import torch
 from torch.nn.parallel import DistributedDataParallel as DDP
 
 
-def save_checkpoint(model, optimizer, epoch, loss, scheduler, ckpt_path):
+def save_checkpoint(
+    model, optimizer, epoch, loss, scheduler, ckpt_path, denorm_loss=None
+):
     """Save checkpoint
 
     Args:
@@ -15,6 +17,7 @@ def save_checkpoint(model, optimizer, epoch, loss, scheduler, ckpt_path):
         loss: Current loss value
         scheduler: Learning rate scheduler
         ckpt_path: Path to save checkpoint
+        denorm_loss: Denormalized loss value (optional)
     """
     # If using DDP, save only the model's module
     if isinstance(model, DDP):
@@ -23,16 +26,19 @@ def save_checkpoint(model, optimizer, epoch, loss, scheduler, ckpt_path):
         model_state_dict = model.state_dict()
 
     os.makedirs(os.path.dirname(ckpt_path), exist_ok=True)
-    torch.save(
-        {
-            "epoch": epoch,
-            "model_state_dict": model_state_dict,
-            "optimizer_state_dict": optimizer.state_dict(),
-            "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
-            "loss": loss,
-        },
-        ckpt_path,
-    )
+    checkpoint_data = {
+        "epoch": epoch,
+        "model_state_dict": model_state_dict,
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict() if scheduler else None,
+        "loss": loss,
+    }
+
+    # Add denormalized loss if provided
+    if denorm_loss is not None:
+        checkpoint_data["denorm_loss"] = denorm_loss
+
+    torch.save(checkpoint_data, ckpt_path)
 
 
 def load_checkpoint(ckpt_path, model, optimizer=None, scheduler=None):
@@ -45,11 +51,11 @@ def load_checkpoint(ckpt_path, model, optimizer=None, scheduler=None):
         scheduler: Learning rate scheduler (optional)
 
     Returns:
-        tuple: (epoch, loss) from the checkpoint
+        dict: Checkpoint data with epoch, loss, and denorm_loss if available
     """
     if not os.path.exists(ckpt_path):
         print(f"Checkpoint {ckpt_path} does not exist. Starting from scratch.")
-        return 0, float("inf")
+        return {"epoch": 0, "loss": float("inf"), "denorm_loss": float("inf")}
 
     checkpoint = torch.load(ckpt_path)
 
@@ -65,4 +71,11 @@ def load_checkpoint(ckpt_path, model, optimizer=None, scheduler=None):
     if scheduler and checkpoint.get("scheduler_state_dict"):
         scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
 
-    return checkpoint["epoch"], checkpoint["loss"]
+    # Return all checkpoint data as a dictionary
+    result = {
+        "epoch": checkpoint["epoch"],
+        "loss": checkpoint["loss"],
+        "denorm_loss": checkpoint.get("denorm_loss", float("inf")),
+    }
+
+    return result

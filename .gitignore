@@ -16,6 +16,7 @@ help_ood_down/
 Legacy/
 Analysis/.[tp][nx][tg]
 checkpoints/
+lr_finder_results/
 
 # Ignore all logs
 *logs/

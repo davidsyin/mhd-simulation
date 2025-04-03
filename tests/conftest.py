@@ -114,6 +114,24 @@ def generate_mini_mhd_data(mini_data_path):
 
 
 @pytest.fixture
+def optimizer_config():
+    """Return a test configuration for optimizers."""
+    return {
+        "optimizer_params": {
+            "optimizer_type": "adam",
+            "lr": 1.0e-3,
+            "betas": [0.9, 0.999],
+            "weight_decay": 0.0,
+            "eps": 1.0e-8,
+            "use_scheduler": True,
+            "scheduler_type": "multistep",
+            "milestones": [10, 20],
+            "gamma": 0.5,
+        }
+    }
+
+
+@pytest.fixture
 def mini_config(mini_data_path, mini_config_path):
     """Create a test configuration file."""
     # Define the configuration
@@ -169,8 +187,11 @@ def mini_config(mini_data_path, mini_config_path):
             "pin_memory": False,
         },
         "optimizer_params": {
+            "optimizer_type": "adam",  # Add optimizer type
             "betas": [0.9, 0.999],
             "lr": 1.0e-3,
+            "weight_decay": 0.0,  # Add weight decay
+            "scheduler_type": "multistep",  # Add scheduler type
             "milestones": [10, 20],
             "gamma": 0.5,
             "use_scheduler": True,

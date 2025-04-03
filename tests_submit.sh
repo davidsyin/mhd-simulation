@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name=calculate_mhd_train_stats
+#SBATCH --job-name=run-module-tests
 #SBATCH --account=bdwx-dtai-gh
 #SBATCH --partition=ghx4-interactive
 #SBATCH --nodes=1
@@ -8,8 +8,8 @@
 #SBATCH --gpus=1                              # Number of GPUs to allocate
 #SBATCH --time=00:15:00
 #SBATCH --mem=600G
-#SBATCH --output=slurm_logs/mhd_stats_%j.log
-#SBATCH --error=slurm_logs/mhd_stats_%j.err
+#SBATCH --output=slurm_logs/tests_%j.log
+#SBATCH --error=slurm_logs/tests_%j.err
 # #SBATCH --nodelist=gpua057 # Optional, but recommended if there's availability
 # #SBATCH --exclusive # Optional, but recommended if there's availability
 

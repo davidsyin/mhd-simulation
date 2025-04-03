@@ -1,0 +1,139 @@
+optimizer_params:
+  optimizer_type: "adam"
+  lr: 1.0e-3
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 0.0
+  amsgrad: false
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "multistep"
+  milestones: [50, 100, 150, 200, 225]
+  gamma: 0.5
+
+optimizer_params:
+  optimizer_type: "adamw"
+  lr: 1.0e-3
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 1.0e-2  # AdamW applies weight decay correctly
+  amsgrad: false
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "cosine"
+  T_max: 300
+  eta_min: 1.0e-6
+
+optimizer_params:
+  optimizer_type: "sgd"
+  lr: 1.0e-2
+  momentum: 0.9
+  dampening: 0.0  # Must be 0 when using nesterov
+  weight_decay: 1.0e-4
+  nesterov: true
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "multistep"
+  milestones: [50, 100, 150]
+  gamma: 0.2
+
+optimizer_params:
+  optimizer_type: "rmsprop"
+  lr: 1.0e-3
+  alpha: 0.99
+  eps: 1.0e-8
+  weight_decay: 0.0
+  momentum: 0.0
+  centered: false
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "reducelr"
+  mode: "min"
+  factor: 0.5
+  patience: 10
+
+optimizer_params:
+  optimizer_type: "lbfgs"
+  lr: 1.0
+  max_iter: 20
+  max_eval: null
+  tolerance_grad: 1.0e-7
+  tolerance_change: 1.0e-9
+  history_size: 100
+  line_search_fn: "strong_wolfe"  # or null
+  
+  # Often used without scheduler
+  use_scheduler: false
+
+optimizer_params:
+  optimizer_type: "adagrad"
+  lr: 1.0e-2
+  lr_decay: 0.0
+  weight_decay: 0.0
+  initial_accumulator_value: 0.0
+  eps: 1.0e-10
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "reducelr"
+  mode: "min"
+  factor: 0.5
+  patience: 5
+
+optimizer_params:
+  optimizer_type: "adadelta"
+  lr: 1.0
+  rho: 0.9
+  eps: 1.0e-6
+  weight_decay: 0.0
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "reducelr"
+  mode: "min"
+  factor: 0.5
+  patience: 5
+
+optimizer_params:
+  optimizer_type: "lion"
+  lr: 1.0e-4  # Lion typically uses lower learning rates
+  betas: [0.9, 0.99]
+  weight_decay: 1.0e-2
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "cosine"
+  T_max: 300
+  eta_min: 1.0e-7
+
+optimizer_params:
+  optimizer_type: "radam"
+  lr: 1.0e-3
+  betas: [0.9, 0.999]
+  eps: 1.0e-8
+  weight_decay: 1.0e-4
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "cosine"
+  T_max: 200
+  eta_min: 1.0e-6
+
+optimizer_params:
+  optimizer_type: "adabelief"
+  lr: 1.0e-3
+  betas: [0.9, 0.999]
+  eps: 1.0e-16  # AdaBelief uses a smaller epsilon
+  weight_decay: 1.0e-4
+  weight_decouple: true  # Use decoupled weight decay
+  rectify: true  # Use RAdam-style rectification
+  
+  # Scheduler config
+  use_scheduler: true
+  scheduler_type: "cosine"
+  T_max: 250
+  eta_min: 1.0e-6

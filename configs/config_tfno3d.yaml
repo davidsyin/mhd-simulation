@@ -86,12 +86,20 @@ test_loader_params:
 ###################
 ## Optimizer options
 optimizer_params:
-  betas: [0.9, 0.999]
+  optimizer_type: "adamw" # options: adam, adamw, sgd, lbfgs, lion, radam, adabelief, etc.
   lr: 1.0e-3
-  # milestones: [25, 50, 75, 100, 125]
-  milestones: [50, 100, 150, 200, 225]
-  gamma: 0.5
-  use_scheduler: true
+  weight_decay: 1.0e-2
+  betas: [0.9, 0.999]
+
+  use_scheduler: True
+  scheduler_type: "reducelr" # options: multistep, cosine, reducelr, dummy
+  mode: "min"
+  factor: 0.5
+  patience: 10
+
+  # scheduler_type: "cosine"
+  # T_max: 300
+  # eta_min: 1.0e-6
 
 ###################
 ## Train params

@@ -7,6 +7,7 @@ from torch.utils.tensorboard import SummaryWriter
 from ..utils.config import load_config
 from ..models.model_factory import create_model
 from ..losses import create_loss
+from ..optimizers import create_optimizer, create_scheduler
 from ..data.dataset import get_dataloaders
 from .trainers import (
     train_epoch,
@@ -88,20 +89,18 @@ def train(config_path, data_path):
 
     # Define optimizer
     optimizer_params = config["optimizer_params"]
-    optimizer = optim.Adam(
-        model.parameters(), lr=optimizer_params["lr"], betas=optimizer_params["betas"]
-    )
+    optimizer = create_optimizer(model.parameters(), config)
+    print(f"Using {optimizer_params.get('optimizer_type')} optimizer\n")
 
-    # Define scheduler only if enabled in config
     if optimizer_params.get("use_scheduler", True):
-        scheduler = optim.lr_scheduler.MultiStepLR(
-            optimizer,
-            milestones=optimizer_params["milestones"],
-            gamma=optimizer_params["gamma"],
-        )
+        scheduler = create_scheduler(optimizer, config)
+        print(f"Using {optimizer_params.get('scheduler_type')} scheduler\n")
     else:
         # Create a dummy scheduler that doesn't change the learning rate
-        scheduler = optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 1.0)
+        from ..optimizers.standard_schedulers import create_dummy_scheduler
+
+        scheduler = create_dummy_scheduler(optimizer, optimizer_params)
+        print("Using dummy scheduler (no LR scheduling)")
 
     # Load checkpoint if specified
     train_params = config["train_params"]
@@ -132,11 +131,14 @@ def train(config_path, data_path):
         val_loss = validate(model, val_loader, criterion, device)
 
         # Update scheduler
-        scheduler.step()
+        if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+            scheduler.step(val_loss)
+        else:
+            scheduler.step()
 
         # Log metrics to console
         print(
-            f"Epoch {epoch}: Train Loss: {train_loss:.6f}, Val Loss: {val_loss:.6f}, LR: {scheduler.get_last_lr()[0]:.6f}"
+            f"Epoch {epoch}: Train Loss: {train_loss:.6f}, Val Loss: {val_loss:.6f}, LR: {scheduler.get_last_lr()[0] if not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau) else optimizer.param_groups[0]['lr']:.6f}"
         )
 
         # Log to tensorboard

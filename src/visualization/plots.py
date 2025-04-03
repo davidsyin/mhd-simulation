@@ -35,7 +35,7 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
         if hasattr(normalizer, "to"):
             normalizer = copy.deepcopy(normalizer).to(device)
             print(
-                f"Using dataset-level {normalizer.__class__.__name__} for visualization"
+                f"Using dataset-level {normalizer.__class__.__name__} to denormalize for visualization"
             )
     else:
         normalizer = None

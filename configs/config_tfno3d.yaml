@@ -3,19 +3,19 @@
 model_params:
   model_type: "tfno"
   # model_variant: "time_evolution" # optional
-  width: 8 # hidden_channels in TFNO3d
-  n_layers: 4 # n_layers in TFNO3d
-  modes1: 8 # x dimension modes
-  modes2: 8 # y dimension modes
-  modes3: 8 # t dimension modes
-  fc_dim: 128 # For lifting_channels and projection_channels
+  width: 32 # hidden_channels in TFNO3d
+  n_layers: 5 # n_layers in TFNO3d
+  modes1: 12 # x dimension modes
+  modes2: 12 # y dimension modes
+  modes3: 12 # t dimension modes
+  fc_dim: 256 # For lifting_channels and projection_channels
   in_dim: 3 # u_x, u_y, A
   out_dim: 3 # u_x, u_y, A
   activation: "gelu"
   pad_x: 0.10 # 10% padding in x direction
   pad_y: 0.10 # 10% padding in y direction
   pad_z: 0.00 # no padding in t direction
-  rank: 1.00 # Tensor factorization rank for Tucker
+  rank: 0.80 # Tensor factorization rank for Tucker
   factorization: "tucker"
 
 ###################
@@ -87,7 +87,7 @@ test_loader_params:
 ## Optimizer options
 optimizer_params:
   optimizer_type: "adamw" # options: adam, adamw, sgd, lbfgs, lion, radam, adabelief, etc.
-  lr: 1.0e-3
+  lr: 9.0e-4
   weight_decay: 1.0e-2
   betas: [0.9, 0.999]
 
@@ -95,7 +95,7 @@ optimizer_params:
   scheduler_type: "reducelr" # options: multistep, cosine, reducelr, dummy
   mode: "min"
   factor: 0.5
-  patience: 10
+  patience: 5
 
   # scheduler_type: "cosine"
   # T_max: 300

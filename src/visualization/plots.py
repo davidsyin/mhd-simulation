@@ -77,31 +77,54 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
 
             # Plot predictions
             for i in range(min(num_samples, x.shape[0])):
-                fig, axes = plt.subplots(3, 3, figsize=(15, 15))
+                # Change to 3x4 subplot layout
+                fig, axes = plt.subplots(3, 4, figsize=(20, 15))
 
                 # Channel names for better interpretability
                 channel_names = ["u_x", "u_y", "A"]
+                cmap = "RdBu_r"  # Use RdBu_r colormap for all plots
 
-                # First row: initial conditions
+                # First column: initial conditions
                 for c in range(3):
-                    im = axes[0, c].imshow(x_np[i, c, 0])
-                    axes[0, c].set_title(f"IC: {channel_names[c]}")
-                    axes[0, c].axis("off")
-                    plt.colorbar(im, ax=axes[0, c], fraction=0.046, pad=0.04)
+                    im = axes[c, 0].imshow(x_np[i, c, 0], cmap=cmap)
+                    axes[c, 0].set_title(f"IC: {channel_names[c]}")
+                    axes[c, 0].axis("off")
+                    plt.colorbar(im, ax=axes[c, 0], fraction=0.046, pad=0.04)
 
-                # Second row: true final state
+                # For each channel, calculate colorbar limits based on true results
                 for c in range(3):
-                    im = axes[1, c].imshow(y_np[i, c, -1])
-                    axes[1, c].set_title(f"True Final: {channel_names[c]}")
-                    axes[1, c].axis("off")
-                    plt.colorbar(im, ax=axes[1, c], fraction=0.046, pad=0.04)
+                    # Second column: true final state
+                    vmin = np.min(y_np[i, c, -1])
+                    vmax = np.max(y_np[i, c, -1])
 
-                # Third row: predicted final state
-                for c in range(3):
-                    im = axes[2, c].imshow(pred_np[i, c, -1])
-                    axes[2, c].set_title(f"Pred Final: {channel_names[c]}")
-                    axes[2, c].axis("off")
-                    plt.colorbar(im, ax=axes[2, c], fraction=0.046, pad=0.04)
+                    # Ensure symmetric colorbar limits for diverging colormap
+                    abs_max = max(abs(vmin), abs(vmax))
+                    vmin, vmax = -abs_max, abs_max
+
+                    # True final state
+                    im = axes[c, 1].imshow(
+                        y_np[i, c, -1], cmap=cmap, vmin=vmin, vmax=vmax
+                    )
+                    axes[c, 1].set_title(f"True Final: {channel_names[c]}")
+                    axes[c, 1].axis("off")
+                    plt.colorbar(im, ax=axes[c, 1], fraction=0.046, pad=0.04)
+
+                    # Third column: predicted final state (using same colorbar range as true results)
+                    im = axes[c, 2].imshow(
+                        pred_np[i, c, -1], cmap=cmap, vmin=vmin, vmax=vmax
+                    )
+                    axes[c, 2].set_title(f"Pred Final: {channel_names[c]}")
+                    axes[c, 2].axis("off")
+                    plt.colorbar(im, ax=axes[c, 2], fraction=0.046, pad=0.04)
+
+                    # Fourth column: absolute error
+                    error = np.abs(y_np[i, c, -1] - pred_np[i, c, -1])
+                    im = axes[c, 3].imshow(
+                        error, cmap="viridis"
+                    )  # Use viridis for error (non-diverging data)
+                    axes[c, 3].set_title(f"Abs Error: {channel_names[c]}")
+                    axes[c, 3].axis("off")
+                    plt.colorbar(im, ax=axes[c, 3], fraction=0.046, pad=0.04)
 
                 plt.tight_layout()
                 plt.savefig(os.path.join(plots_dir, f"sample_{i}.png"))

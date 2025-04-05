@@ -10,7 +10,8 @@ from ..normalizations import create_normalization
 class MHDDataset(Dataset):
     def __init__(
         self,
-        data,
+        x_data,
+        y_data,
         normalization_config=None,
         split="train",
         train_ratio=0.95,
@@ -27,14 +28,14 @@ class MHDDataset(Dataset):
             seed: Random seed for reproducibility
         """
         # Extract shape information
-        self.num_samples, self.timesteps, self.nx, self.ny, self.channels = data.shape
+        self.num_samples, self.channels, self.timesteps, self.nx, self.ny = y_data.shape
 
         # Reshape the whole dataset upfront
         # Convert from (num_samples, timesteps, nx, ny, channels) to
         # x_data: (num_samples, channels, 1, nx, ny) - initial conditions
         # y_data: (num_samples, channels, timesteps, nx, ny) - full time evolution
-        self.x_data = torch.from_numpy(data[:, 0:1]).float().permute(0, 4, 1, 2, 3)
-        self.y_data = torch.from_numpy(data).float().permute(0, 4, 1, 2, 3)
+        self.x_data = x_data
+        self.y_data = y_data
 
         # Create normalization module if specified
         self.normalizer = None
@@ -160,25 +161,31 @@ def get_dataloaders(
             )
 
     data = np.load(data_path)
+    reshaped_data = torch.from_numpy(data).float().permute(0, 4, 1, 2, 3)
+    x_data = reshaped_data[:, :, 0:1]  # Shape: (num_samples, channels, 1, nx, ny)
+    y_data = reshaped_data  # Shape: (num_samples, channels, timesteps, nx, ny)
     print(f"\nCreating dataloaders with train_ratio={train_ratio}, seed={seed}")
 
     # Create datasets with the processed normalization config
     train_dataset = MHDDataset(
-        data,
+        x_data,
+        y_data,
         normalization_config=normalization_config,
         split="train",
         train_ratio=train_ratio,
         seed=seed,
     )
     val_dataset = MHDDataset(
-        data,
+        x_data,
+        y_data,
         normalization_config=normalization_config,
         split="val",
         train_ratio=train_ratio,
         seed=seed,
     )
     test_dataset = MHDDataset(
-        data,
+        x_data,
+        y_data,
         normalization_config=normalization_config,
         split="test",
         train_ratio=train_ratio,

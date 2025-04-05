@@ -3,20 +3,20 @@
 model_params:
   model_type: "tfno"
   # model_variant: "time_evolution" # optional
-  width: 32 # hidden_channels in TFNO3d
-  n_layers: 5 # n_layers in TFNO3d
-  modes1: 12 # x dimension modes
-  modes2: 12 # y dimension modes
-  modes3: 12 # t dimension modes
-  fc_dim: 256 # For lifting_channels and projection_channels
+  width: 8 # hidden_channels in TFNO3d
+  n_layers: 4 # n_layers in TFNO3d
+  modes1: 8 # x dimension modes
+  modes2: 8 # y dimension modes
+  modes3: 8 # t dimension modes
+  fc_dim: 128 # For lifting_channels and projection_channels
   in_dim: 3 # u_x, u_y, A
   out_dim: 3 # u_x, u_y, A
   activation: "gelu"
-  pad_x: 0.10 # 10% padding in x direction
-  pad_y: 0.10 # 10% padding in y direction
-  pad_z: 0.00 # no padding in t direction
-  rank: 0.80 # Tensor factorization rank for Tucker
-  factorization: "tucker"
+  pad_x: 0.00 # padding ratio in x direction
+  pad_y: 0.00 # padding ratio in y direction
+  pad_z: 0.00 # padding ratio in t direction
+  rank: 0.80 # Tensor factorization rank
+  factorization: "cp"
 
 ###################
 ## Normalization options at dataset level
@@ -26,10 +26,10 @@ normalization_params:
   # output_norm: [1.0, 1.0, 2.5e-4]
   stats_file: "/u/skacmaz/NODs/stats/train_only_stats.npz"
 
-  # type: "minmax"
-  # feature_range: [0, 1]
+  type: "minmax"
+  feature_range: [-1, 1]
 
-  type: "standard"
+  # type: "standard"
   # # mean: [0.0, 0.0, 0.0] # Uncomment if you want to use your own stats
   # # std: [1.13536170e-01, 1.04062743e-01, 6.62853878e-05] # Uncomment if you want to use your own stats
 
@@ -95,7 +95,7 @@ optimizer_params:
   scheduler_type: "reducelr" # options: multistep, cosine, reducelr, dummy
   mode: "min"
   factor: 0.5
-  patience: 5
+  patience: 3
 
   # scheduler_type: "cosine"
   # T_max: 300
@@ -104,16 +104,16 @@ optimizer_params:
 ###################
 ## Train params
 train_params:
-  epochs: 300
+  epochs: 100
   ckpt_freq: 50
-  ckpt_path: "checkpoints/MHD_TFNO3d/model"
+  ckpt_path: "checkpoints/MHD_TFNO3d/model_nope"
   load_ckpt: "" # Leave empty to start from scratch
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logs"
+  wandb_dir: "/u/skacmaz/NODs/logs_nope"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_TFNO3d"
   wandb_num_plots: 2
-  wandb_plot_freq: 5
+  wandb_plot_freq: 20

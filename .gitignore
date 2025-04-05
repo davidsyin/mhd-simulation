@@ -20,6 +20,7 @@ lr_finder_results/
 
 # Ignore all logs
 *logs/
+logs*/
 log.txt
 
 # Ignore all TensorBoard event files

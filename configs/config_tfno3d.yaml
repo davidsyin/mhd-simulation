@@ -106,13 +106,13 @@ optimizer_params:
 train_params:
   epochs: 100
   ckpt_freq: 50
-  ckpt_path: "checkpoints/MHD_TFNO3d/model_nope"
+  ckpt_path: "checkpoints/MHD_TFNO3d/model"
   load_ckpt: "" # Leave empty to start from scratch
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logs_nope"
+  wandb_dir: "/u/skacmaz/NODs/logs"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_TFNO3d"
   wandb_num_plots: 2

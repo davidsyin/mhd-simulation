@@ -26,10 +26,15 @@ class MHDDataset(Dataset):
             train_ratio: Ratio of data to use for training
             seed: Random seed for reproducibility
         """
-        self.data = data
-        self.num_samples, self.timesteps, self.nx, self.ny, self.channels = (
-            self.data.shape
-        )
+        # Extract shape information
+        self.num_samples, self.timesteps, self.nx, self.ny, self.channels = data.shape
+
+        # Reshape the whole dataset upfront
+        # Convert from (num_samples, timesteps, nx, ny, channels) to
+        # x_data: (num_samples, channels, 1, nx, ny) - initial conditions
+        # y_data: (num_samples, channels, timesteps, nx, ny) - full time evolution
+        self.x_data = torch.from_numpy(data[:, 0:1]).float().permute(0, 4, 1, 2, 3)
+        self.y_data = torch.from_numpy(data).float().permute(0, 4, 1, 2, 3)
 
         # Create normalization module if specified
         self.normalizer = None
@@ -81,21 +86,8 @@ class MHDDataset(Dataset):
             y: Full time evolution with shape (channels=3, t=101, x=128, y=128)
         """
         sample_idx = self.indices[idx]
-
-        # Get full time evolution data
-        data = self.data[
-            sample_idx
-        ]  # Shape: (timesteps=101, nx=128, ny=128, channels=3)
-
-        # Initial condition is the first timestep
-        ic = data[0:1]  # Shape: (1, nx=128, ny=128, channels=3)
-
-        # TFNO3d expects: (batch, channels, t, x, y)
-        # Need to permute from (t, x, y, channels) to (channels, t, x, y)
-        x = torch.from_numpy(ic).float().permute(3, 0, 1, 2)  # Shape: (3, 1, 128, 128)
-        y = (
-            torch.from_numpy(data).float().permute(3, 0, 1, 2)
-        )  # Shape: (3, 101, 128, 128)
+        x = self.x_data[sample_idx]
+        y = self.y_data[sample_idx]
 
         # Apply normalization if specified
         if self.normalizer:

@@ -27,12 +27,13 @@ def test_tfno_model_forward(mini_config, device):
     # Create model from config
     model = create_model(mini_config).to(device)
 
-    # Create dummy input tensor
+    # Create dummy input tensor with grid coordinates
     # TFNO3d expects (batch, channels, t, x, y)
     batch_size = 2
-    in_channels = mini_config["model_params"]["in_dim"]
+    # Input now needs to have 6 channels (3 grid + 3 data)
+    in_channels = 6  # 3 for grid coordinates and 3 for data
     out_channels = mini_config["model_params"]["out_dim"]
-    t_size = 1  # Initial condition
+    t_size = 21  # Time steps
     x_size, y_size = 32, 32  # Spatial dimensions
 
     # Create input tensor
@@ -42,15 +43,10 @@ def test_tfno_model_forward(mini_config, device):
     with torch.no_grad():
         y = model(x)
 
-    # Check output shape (same as input for this model)
-    assert y.shape == (
-        batch_size,
-        out_channels,
-        t_size,
-        x_size,
-        y_size,
-    ), (
-        f"Expected output shape {(batch_size, out_channels, t_size, x_size, y_size)}, got {y.shape}"
+    # Check output shape - output should have 3 channels (no grid coordinates)
+    expected_output_shape = (batch_size, out_channels, t_size, x_size, y_size)
+    assert y.shape == expected_output_shape, (
+        f"Expected output shape {expected_output_shape}, got {y.shape}"
     )
 
 
@@ -72,6 +68,8 @@ def test_model_with_actual_data(mini_config_path, generate_mini_mhd_data, device
         num_workers=0,
         train_ratio=0.8,
         seed=42,
+        sub_t=1,
+        sub_x=1,
     )
 
     # Get a batch
@@ -82,9 +80,10 @@ def test_model_with_actual_data(mini_config_path, generate_mini_mhd_data, device
     with torch.no_grad():
         output = model(x)
 
-    # Check output shape matches input shape
-    assert output.shape == x.shape, (
-        f"Expected output shape {x.shape}, got {output.shape}"
+    # Check output shape matches target shape, not input shape
+    # Input has grid embeddings, output doesn't
+    assert output.shape == y.shape, (
+        f"Expected output shape {y.shape}, got {output.shape}"
     )
 
     # Check output is not NaN or Inf

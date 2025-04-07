@@ -31,6 +31,8 @@ def test_full_pipeline(mini_config_path, generate_mini_mhd_data, device):
             config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
         ),
         seed=config["dataset_params"]["seed"],
+        sub_t=config["dataset_params"].get("sub_t", 1),
+        sub_x=config["dataset_params"].get("sub_x", 1),
     )
 
     # Create loss function
@@ -51,9 +53,7 @@ def test_full_pipeline(mini_config_path, generate_mini_mhd_data, device):
     # Forward pass
     optimizer.zero_grad()
     output = model(x)
-    loss = criterion(
-        output, x
-    )  # Compare prediction with input (autoencoder mode for testing)
+    loss = criterion(output, y)
 
     # Backward pass
     loss.backward()
@@ -116,9 +116,9 @@ def test_integration(mini_config_path, generate_mini_mhd_data, device):
     scheduler = create_scheduler(optimizer, config)
 
     # Test scheduler type
-    assert isinstance(
-        scheduler, torch.optim.lr_scheduler.CosineAnnealingLR
-    ), "Scheduler should be CosineAnnealingLR as specified in config"
+    assert isinstance(scheduler, torch.optim.lr_scheduler.CosineAnnealingLR), (
+        "Scheduler should be CosineAnnealingLR as specified in config"
+    )
 
     # Check initial LR
     initial_lr = optimizer.param_groups[0]["lr"]
@@ -156,9 +156,9 @@ def test_integration(mini_config_path, generate_mini_mhd_data, device):
     scheduler.step()
 
     # Check LR has been updated
-    assert (
-        optimizer.param_groups[0]["lr"] != initial_lr
-    ), "LR should change after scheduler.step()"
+    assert optimizer.param_groups[0]["lr"] != initial_lr, (
+        "LR should change after scheduler.step()"
+    )
 
     # ===== SEPARATE TEST FOR REDUCELRONPLATEAU =====
     # Since we've already tested the factory can create different scheduler types,
@@ -175,6 +175,6 @@ def test_integration(mini_config_path, generate_mini_mhd_data, device):
     scheduler_reducelr = create_scheduler(optimizer_reducelr, config)
 
     # Verify type
-    assert isinstance(
-        scheduler_reducelr, torch.optim.lr_scheduler.ReduceLROnPlateau
-    ), "Scheduler should be ReduceLROnPlateau as specified in config"
+    assert isinstance(scheduler_reducelr, torch.optim.lr_scheduler.ReduceLROnPlateau), (
+        "Scheduler should be ReduceLROnPlateau as specified in config"
+    )

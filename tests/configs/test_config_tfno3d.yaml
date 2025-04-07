@@ -6,6 +6,8 @@ dataset_params:
   num_test: 2
   num_train: 8
   seed: 42
+  sub_t: 1
+  sub_x: 1
 loss_params:
   reduction: mean
   type: mse
@@ -13,7 +15,7 @@ model_params:
   activation: gelu
   factorization: tucker
   fc_dim: 64
-  in_dim: 3
+  in_dim: 6
   model_type: tfno
   modes1: 8
   modes2: 8

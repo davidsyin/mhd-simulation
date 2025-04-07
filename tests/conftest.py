@@ -144,7 +144,7 @@ def mini_config(mini_data_path, mini_config_path):
             "modes2": 8,
             "modes3": 8,
             "fc_dim": 64,
-            "in_dim": 3,
+            "in_dim": 6,  # Updated to 6 for 3 grid + 3 data channels
             "out_dim": 3,
             "activation": "gelu",
             "pad_x": 0.05,
@@ -166,6 +166,8 @@ def mini_config(mini_data_path, mini_config_path):
             "num_train": 8,
             "num_test": 2,
             "seed": 42,
+            "sub_t": 1,  # Add subsampling parameter
+            "sub_x": 1,  # Add subsampling parameter
         },
         "loss_params": {"type": "mse", "reduction": "mean"},
         "train_loader_params": {

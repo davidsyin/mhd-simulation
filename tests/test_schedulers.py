@@ -34,9 +34,9 @@ def test_scheduler_factory(mini_config):
     scheduler = create_scheduler(optimizer, config)
 
     # Check type
-    assert isinstance(
-        scheduler, optim.lr_scheduler.MultiStepLR
-    ), "Factory should create MultiStepLR scheduler for 'multistep' type"
+    assert isinstance(scheduler, optim.lr_scheduler.MultiStepLR), (
+        "Factory should create MultiStepLR scheduler for 'multistep' type"
+    )
 
     # Test with different scheduler types
     cosine_config = {
@@ -47,9 +47,9 @@ def test_scheduler_factory(mini_config):
         }
     }
     cosine_scheduler = create_scheduler(optimizer, cosine_config)
-    assert isinstance(
-        cosine_scheduler, optim.lr_scheduler.CosineAnnealingLR
-    ), "Factory should create CosineAnnealingLR for 'cosine' type"
+    assert isinstance(cosine_scheduler, optim.lr_scheduler.CosineAnnealingLR), (
+        "Factory should create CosineAnnealingLR for 'cosine' type"
+    )
 
     reducelr_config = {
         "optimizer_params": {
@@ -59,21 +59,24 @@ def test_scheduler_factory(mini_config):
         }
     }
     reducelr_scheduler = create_scheduler(optimizer, reducelr_config)
-    assert isinstance(
-        reducelr_scheduler, optim.lr_scheduler.ReduceLROnPlateau
-    ), "Factory should create ReduceLROnPlateau for 'reducelr' type"
+    assert isinstance(reducelr_scheduler, optim.lr_scheduler.ReduceLROnPlateau), (
+        "Factory should create ReduceLROnPlateau for 'reducelr' type"
+    )
 
     dummy_config = {"optimizer_params": {"use_scheduler": False}}
     dummy_scheduler = create_scheduler(optimizer, dummy_config)
-    assert isinstance(
-        dummy_scheduler, optim.lr_scheduler.LambdaLR
-    ), "Factory should create LambdaLR for 'dummy' type"
+    assert isinstance(dummy_scheduler, optim.lr_scheduler.LambdaLR), (
+        "Factory should create LambdaLR for 'dummy' type"
+    )
 
 
 def test_multistep_scheduler():
     """Test MultiStepLR scheduler."""
     # Create a simple model
     model = nn.Linear(10, 1)
+    input_data = torch.randn(1, 10)
+    target = torch.randn(1, 1)
+    criterion = nn.MSELoss()
 
     # Create optimizer
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -86,13 +89,27 @@ def test_multistep_scheduler():
     # Check initial learning rate
     assert optimizer.param_groups[0]["lr"] == 0.001, "Initial LR should be 0.001"
 
-    # Step the scheduler once (should reduce LR by factor of 0.1)
+    # Simulate one training iteration before stepping scheduler
+    output = model(input_data)
+    loss = criterion(output, target)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    # Step the scheduler after optimizer (proper order)
     scheduler.step()
 
     # Check new learning rate
     assert optimizer.param_groups[0]["lr"] == 0.0001, "LR should be reduced to 0.0001"
 
-    # Step again (should reduce LR by another factor of 0.1)
+    # Simulate another iteration
+    output = model(input_data)
+    loss = criterion(output, target)
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+    # Step again
     scheduler.step()
 
     # Check final learning rate
@@ -103,6 +120,9 @@ def test_cosine_scheduler():
     """Test CosineAnnealingLR scheduler."""
     # Create a simple model
     model = nn.Linear(10, 1)
+    input_data = torch.randn(1, 10)
+    target = torch.randn(1, 1)
+    criterion = nn.MSELoss()
 
     # Create optimizer
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -117,21 +137,37 @@ def test_cosine_scheduler():
     initial_lr = optimizer.param_groups[0]["lr"]
 
     for _ in range(5):
+        # Simulate training step
+        output = model(input_data)
+        loss = criterion(output, target)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Update scheduler
         scheduler.step()
 
     # Check that LR has decreased
-    assert (
-        optimizer.param_groups[0]["lr"] < initial_lr
-    ), "LR should decrease with cosine scheduler"
+    assert optimizer.param_groups[0]["lr"] < initial_lr, (
+        "LR should decrease with cosine scheduler"
+    )
 
     # Continue stepping to T_max
     for _ in range(5):
+        # Simulate training step
+        output = model(input_data)
+        loss = criterion(output, target)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Update scheduler
         scheduler.step()
 
     # Check that LR is at minimum
-    assert (
-        optimizer.param_groups[0]["lr"] == 0
-    ), "LR should reach eta_min after T_max steps"
+    assert optimizer.param_groups[0]["lr"] == 0, (
+        "LR should reach eta_min after T_max steps"
+    )
 
 
 def test_reducelr_scheduler():
@@ -150,6 +186,9 @@ def test_reducelr_scheduler():
     # Check initial learning rate
     assert optimizer.param_groups[0]["lr"] == 0.001, "Initial LR should be 0.001"
 
+    # For ReduceLROnPlateau, no need for optimizer.step() before scheduler.step(metric)
+    # as it's monitoring the metric value, not tied to training iterations
+
     # Simulate no improvement for patience+1 epochs
     scheduler.step(1.0)  # First validation loss
     scheduler.step(1.0)  # No improvement, patience not exhausted
@@ -162,15 +201,18 @@ def test_reducelr_scheduler():
     scheduler.step(0.5)
 
     # LR shouldn't change when improving
-    assert (
-        optimizer.param_groups[0]["lr"] == 0.0001
-    ), "LR should remain the same after improvement"
+    assert optimizer.param_groups[0]["lr"] == 0.0001, (
+        "LR should remain the same after improvement"
+    )
 
 
 def test_dummy_scheduler():
     """Test dummy scheduler (no changes to LR)."""
     # Create a simple model
     model = nn.Linear(10, 1)
+    input_data = torch.randn(1, 10)
+    target = torch.randn(1, 1)
+    criterion = nn.MSELoss()
 
     # Create optimizer
     optimizer = optim.Adam(model.parameters(), lr=0.001)
@@ -183,9 +225,17 @@ def test_dummy_scheduler():
 
     # Step the scheduler multiple times
     for _ in range(10):
+        # Simulate training step
+        output = model(input_data)
+        loss = criterion(output, target)
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # Update scheduler
         scheduler.step()
 
     # Check that LR hasn't changed
-    assert (
-        optimizer.param_groups[0]["lr"] == initial_lr
-    ), "Dummy scheduler should not change LR"
+    assert optimizer.param_groups[0]["lr"] == initial_lr, (
+        "Dummy scheduler should not change LR"
+    )

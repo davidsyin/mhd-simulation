@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
+import time
 
 from ..utils.config import load_config
 from ..models.model_factory import create_model
@@ -12,11 +13,9 @@ from ..data.dataset import get_dataloaders
 from .trainers import (
     train_epoch,
     train_epoch_distributed,
-    train_epoch_distributed_size_mismatch_fix,
 )
 from .validators import (
     validate,
-    validate_size_mismatch_fix,
     validate_with_denorm_metrics,
 )
 from .train_utils import save_checkpoint, load_checkpoint
@@ -30,6 +29,9 @@ def train(config_path, data_path):
         config_path: Path to configuration file
         data_path: Path to dataset file
     """
+    # Set CUDA benchmark for better performance
+    torch.backends.cudnn.benchmark = True
+
     # Load config
     config = load_config(config_path)
 
@@ -59,6 +61,12 @@ def train(config_path, data_path):
     )
     seed = config["dataset_params"].get("seed", 42)
 
+    # Get subsampling factors from config
+    sub_t = config["dataset_params"].get("sub_t", 1)
+    sub_x = config["dataset_params"].get("sub_x", 1)
+
+    print(f"Using subsampling factors: sub_t={sub_t}, sub_x={sub_x}")
+
     # Create normalization config for dataset
     normalization_config = None
     if "normalization_params" in config:
@@ -69,6 +77,8 @@ def train(config_path, data_path):
         )
 
     # Create dataloaders with normalization and proper seed
+    print("Creating dataloaders...")
+    start_time = time.time()
     train_loader, val_loader, test_loader = get_dataloaders(
         data_path,
         normalization_config=normalization_config,
@@ -76,8 +86,19 @@ def train(config_path, data_path):
         num_workers=config["train_loader_params"]["num_workers"],
         train_ratio=train_ratio,
         seed=seed,
+        sub_t=sub_t,
+        sub_x=sub_x,
     )
+    print(f"Dataloaders created in {time.time() - start_time:.2f} seconds")
 
+    # Check shapes from a batch to debug
+    print("Checking data shapes from first batch:")
+    x_batch, y_batch = next(iter(train_loader))
+    print(f"Input batch shape: {x_batch.shape}")
+    print(f"Output batch shape: {y_batch.shape}")
+
+    # Create model
+    print("Creating model...")
     model = create_model(config)
 
     # Move model to primary device
@@ -126,8 +147,14 @@ def train(config_path, data_path):
     # Make sure checkpoint directory exists
     os.makedirs(os.path.dirname(train_params["ckpt_path"]), exist_ok=True)
 
+    print("\nStarting training loop...")
+    torch.cuda.empty_cache()  # Clear memory before starting training
+
     # Training loop
     for epoch in range(start_epoch, train_params["epochs"]):
+        torch.backends.cudnn.benchmark = True
+        epoch_start_time = time.time()
+
         # Train with custom multi-GPU implementation
         if n_gpus > 1:
             train_loss = train_epoch_distributed(
@@ -149,8 +176,9 @@ def train(config_path, data_path):
             scheduler.step()
 
         # Log metrics to console
+        epoch_time = time.time() - epoch_start_time
         print(
-            f"Epoch {epoch}: Train Loss: {train_loss:.6f}, "
+            f"Epoch {epoch} ({epoch_time:.2f}s): Train Loss: {train_loss:.6f}, "
             f"Val Loss (Norm): {val_loss:.6f}, Val Loss (Denorm): {denorm_val_loss:.6f}, "
             f"LR: {scheduler.get_last_lr()[0] if not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau) else optimizer.param_groups[0]['lr']}"
         )

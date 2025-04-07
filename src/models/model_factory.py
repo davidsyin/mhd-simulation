@@ -64,6 +64,5 @@ def _register_all_models():
     """
     # Import all model modules
     from . import normalized_tfno
-    from . import time_evolution_tfno
 
     # Add imports for future model files here

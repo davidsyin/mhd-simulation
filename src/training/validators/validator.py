@@ -3,10 +3,11 @@
 import torch
 import torch.nn as nn
 from tqdm import tqdm
+import time
 
 
 def validate(model, val_loader, criterion, device):
-    """Validate model performance
+    """Validate model performance with optimized memory handling
 
     Args:
         model: Neural network model
@@ -19,45 +20,33 @@ def validate(model, val_loader, criterion, device):
     """
     model.eval()
     total_loss = 0
+    data_time = 0
+    forward_time = 0
 
     with torch.no_grad():
         for x, y in tqdm(val_loader, desc="Validating"):
-            x, y = x.to(device), y.to(device)
+            # Transfer data with non_blocking=True for better performance
+            data_start = time.time()
+            x = x.to(device, non_blocking=True)
+            y = y.to(device, non_blocking=True)
+            data_time += time.time() - data_start
+
+            # Forward pass
+            forward_start = time.time()
+            x = x.contiguous()  # Ensure input is contiguous
             pred = model(x)
             loss = criterion(pred, y)
-            total_loss += loss.item()
-
-    return total_loss / len(val_loader)
-
-
-def validate_size_mismatch_fix(model, val_loader, criterion, device):
-    """Validate model with size mismatch handling
-
-    Args:
-        model: Neural network model
-        val_loader: DataLoader for validation data
-        criterion: Loss function
-        device: Device to run evaluation on
-
-    Returns:
-        float: Average validation loss
-    """
-    model.eval()
-    total_loss = 0
-
-    with torch.no_grad():
-        for x, y in tqdm(val_loader, desc="Validating"):
-            x, y = x.to(device), y.to(device)
-            pred = model(x)
-
-            # Handle size mismatch
-            if pred.shape[2] == 1 and y.shape[2] > 1:
-                y_adjusted = y[:, :, -1:, :, :]
-                loss = criterion(pred, y_adjusted)
-            else:
-                loss = criterion(pred, y)
+            forward_time += time.time() - forward_start
 
             total_loss += loss.item()
+
+    # Print performance statistics
+    print(f"Validation Statistics:")
+    print(f"- Data transfer: {data_time:.2f}s")
+    print(f"- Forward pass: {forward_time:.2f}s")
+
+    # Free memory
+    torch.cuda.empty_cache()
 
     return total_loss / len(val_loader)
 
@@ -65,6 +54,7 @@ def validate_size_mismatch_fix(model, val_loader, criterion, device):
 def validate_with_denorm_metrics(model, val_loader, criterion, device):
     """
     Validate model performance and calculate denormalized MSE loss.
+    Optimized for better performance with timing measurements.
 
     Args:
         model: Neural network model
@@ -78,6 +68,9 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
     model.eval()
     normalized_mse = 0.0
     denormalized_mse = 0.0
+    data_time = 0
+    forward_time = 0
+    denorm_time = 0
 
     # Check if dataset has a normalizer
     has_normalizer = (
@@ -95,10 +88,17 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
 
     with torch.no_grad():
         for x, y in tqdm(val_loader, desc="Validating"):
-            x, y = x.to(device), y.to(device)
+            # Transfer data with non_blocking=True for better performance
+            data_start = time.time()
+            x = x.to(device, non_blocking=True)
+            y = y.to(device, non_blocking=True)
+            data_time += time.time() - data_start
 
             # Forward pass
+            forward_start = time.time()
+            x = x.contiguous()  # Ensure input is contiguous
             pred = model(x)
+            forward_time += time.time() - forward_start
 
             # Calculate normalized loss (used for training)
             normalized_loss = criterion(pred, y)
@@ -106,6 +106,7 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
 
             # Calculate denormalized MSE if normalizer exists
             if normalizer is not None:
+                denorm_start = time.time()
                 # Make sure normalizer is on the right device
                 if hasattr(normalizer, "to"):
                     normalizer = normalizer.to(device)
@@ -117,6 +118,7 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
                 # Calculate denormalized MSE
                 denorm_loss = mse_criterion(pred_denorm, y_denorm)
                 denormalized_mse += denorm_loss.item()
+                denorm_time += time.time() - denorm_start
             else:
                 # If no normalizer, denormalized is same as normalized
                 denormalized_mse = normalized_mse
@@ -124,5 +126,15 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
     # Calculate averages
     avg_normalized_mse = normalized_mse / len(val_loader)
     avg_denormalized_mse = denormalized_mse / len(val_loader)
+
+    # Print performance statistics
+    print(f"Validation Statistics:")
+    print(f"- Data transfer: {data_time:.2f}s")
+    print(f"- Forward pass: {forward_time:.2f}s")
+    if normalizer is not None:
+        print(f"- Denormalization: {denorm_time:.2f}s")
+
+    # Free memory
+    torch.cuda.empty_cache()
 
     return avg_normalized_mse, avg_denormalized_mse

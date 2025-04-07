@@ -16,53 +16,56 @@ class MHDDataset(Dataset):
         split="train",
         train_ratio=0.95,
         seed=42,
+        sub_t=1,
+        sub_x=1,
+        t_range=(0, 1.0),
+        x_range=(0, 1.0),
+        y_range=(0, 1.0),
     ):
         """
         Dataset for MHD simulation data with normalization support
 
         Args:
-            data: Loaded numpy data with shape (num_samples, timesteps, nx, ny, channels)
+            x_data: Initial conditions with shape (num_samples, channels, 1, nx, ny)
+            y_data: Full time evolution with shape (num_samples, channels, timesteps, nx, ny)
             normalization_config: Configuration dict for normalization
             split: 'train', 'val', or 'test'
             train_ratio: Ratio of data to use for training
             seed: Random seed for reproducibility
+            sub_t: Subsampling factor for time dimension
+            sub_x: Subsampling factor for spatial dimensions
         """
-        # Extract shape information
-        self.num_samples, self.channels, self.timesteps, self.nx, self.ny = y_data.shape
+        print(f"Initializing MHDDataset with data of shape {y_data.shape}")
 
-        # Reshape the whole dataset upfront
-        # Convert from (num_samples, timesteps, nx, ny, channels) to
-        # x_data: (num_samples, channels, 1, nx, ny) - initial conditions
-        # y_data: (num_samples, channels, timesteps, nx, ny) - full time evolution
+        self.num_samples, self.channels, self.timesteps, self.nx, self.ny = y_data.shape
         self.x_data = x_data
         self.y_data = y_data
+
+        # Store subsampling factors
+        self.sub_t = sub_t
+        self.sub_x = sub_x
 
         # Create normalization module if specified
         self.normalizer = None
         if normalization_config:
             self.normalizer = create_normalization(normalization_config)
-            # Debug print
-            # norm_type = normalization_config.get("normalization_params", {}).get(
-            #     "type", "unknown"
-            # )
-            # print(f"Using {norm_type} normalization at dataset level")
+            norm_type = normalization_config.get("normalization_params", {}).get(
+                "type", "unknown"
+            )
+            print(f"Using {norm_type} normalization at dataset level")
 
         # Set random seed for reproducibility
         np.random.seed(seed)
-        # Debug print
-        # print(f"Dataset using random seed: {seed} for {split} split")
+        print(f"Dataset using random seed: {seed} for {split} split")
 
         # Create train/val/test indices
         indices = np.random.permutation(self.num_samples)
         train_size = int(train_ratio * self.num_samples)
         val_size = math.ceil((1 - train_ratio) / 2 * self.num_samples)
 
-        # Debug print
-        #
-        # print(f"indices:{indices}")
-        # print(
-        #     f"Split sizes - Train: {train_size}, Val: {val_size}, Test: {self.num_samples - train_size - val_size}"
-        # )
+        print(
+            f"Split sizes - Train: {train_size}, Val: {val_size}, Test: {self.num_samples - train_size - val_size}"
+        )
 
         if split == "train":
             self.indices = indices[:train_size]
@@ -77,46 +80,88 @@ class MHDDataset(Dataset):
 
         print(f"Initialized {split} dataset with {len(self.indices)} samples")
 
+        # Create coordinate system internally - exactly like in NumpyMHDDataset
+        self.t = np.linspace(t_range[0], t_range[1], self.timesteps)[::sub_t]
+        self.x = np.linspace(x_range[0], x_range[1], self.nx)[::sub_x]
+        self.y = np.linspace(y_range[0], y_range[1], self.ny)[::sub_x]
+
+        self.nt = len(self.t)
+        self.nx = len(self.x)
+        self.ny = len(self.y)
+
+        print(
+            f"Dataset initialized with dimensions: nt={self.nt}, nx={self.nx}, ny={self.ny}"
+        )
+
+        # Precompute grid tensors (once, not per sample) - exactly like in NumpyMHDDataset
+        t_tensor = torch.from_numpy(self.t.astype(np.float32))
+        x_tensor = torch.from_numpy(self.x.astype(np.float32))
+        y_tensor = torch.from_numpy(self.y.astype(np.float32))
+
+        self.grid_t = t_tensor.reshape(self.nt, 1, 1, 1).repeat(1, self.nx, self.ny, 1)
+        self.grid_x = x_tensor.reshape(1, self.nx, 1, 1).repeat(self.nt, 1, self.ny, 1)
+        self.grid_y = y_tensor.reshape(1, 1, self.ny, 1).repeat(self.nt, self.nx, 1, 1)
+
     def __len__(self):
         return len(self.indices)
 
     def __getitem__(self, idx):
         """
         Returns:
-            x: Initial condition with shape (channels=3, t=1, x=128, y=128)
-            y: Full time evolution with shape (channels=3, t=101, x=128, y=128)
+            inputs: Model inputs with shape (in_dim, nt, nx, ny)
+            outputs: Target outputs with shape (out_dim, nt, nx, ny)
         """
         sample_idx = self.indices[idx]
-        x = self.x_data[sample_idx]
-        y = self.y_data[sample_idx]
+
+        # Get subsampled data - match NumpyMHDDataset approach
+        # Extract data with subsampling
+        sample_data = self.y_data[
+            sample_idx, :, :: self.sub_t, :: self.sub_x, :: self.sub_x
+        ]
 
         # Apply normalization if specified
         if self.normalizer:
             # Add batch dimension for normalization
-            x = x.unsqueeze(0)
-            y = y.unsqueeze(0)
+            sample_data = sample_data.unsqueeze(0)
 
             # # Debug print
-            # print("Before norm:")
-            # print("u", x[0, 0, 0, 0, 0])
-            # print("v", x[0, 1, 0, 0, 0])
-            # print("A", x[0, 2, 0, 0, 0])
+            # print("Before norm - first values:")
+            # print("u:", sample_data[0, 0, 0, 0, 0].item())
+            # print("v:", sample_data[0, 1, 0, 0, 0].item())
+            # print("A:", sample_data[0, 2, 0, 0, 0].item())
 
             # Use the normalize method from the normalizer
-            x = self.normalizer.normalize(x)
-            y = self.normalizer.normalize(y)
+            sample_data = self.normalizer.normalize(sample_data)
 
             # # Debug print
-            # print("After norm:")
-            # print("u", x[0, 0, 0, 0, 0])
-            # print("v", x[0, 1, 0, 0, 0])
-            # print("A", x[0, 2, 0, 0, 0])
+            # print("After norm - first values:")
+            # print("u:", sample_data[0, 0, 0, 0, 0].item())
+            # print("v:", sample_data[0, 1, 0, 0, 0].item())
+            # print("A:", sample_data[0, 2, 0, 0, 0].item())
 
             # Remove batch dimension
-            x = x.squeeze(0)
-            y = y.squeeze(0)
+            sample_data = sample_data.squeeze(0)
 
-        return x, y
+        # Ensure data is a tensor
+        data = sample_data.float()
+
+        # Initial condition handling - create data0 by repeating first timestep
+        # This matches exactly what NumpyMHDDataset does
+        data0 = data[:, 0:1].repeat(1, self.nt, 1, 1)
+
+        # Reshape to match grid tensors [nt, nx, ny, channels]
+        data0 = data0.permute(1, 2, 3, 0)
+
+        # Create inputs using precomputed grid tensors
+        # Matching exactly what NumpyMHDDataset does
+        inputs = torch.cat(
+            [self.grid_t, self.grid_x, self.grid_y, data0], dim=-1
+        ).permute(3, 0, 1, 2)
+
+        # Prepare outputs
+        outputs = data.permute(0, 1, 2, 3)
+
+        return inputs, outputs
 
 
 def get_dataloaders(
@@ -126,6 +171,8 @@ def get_dataloaders(
     num_workers=4,
     train_ratio=0.95,
     seed=42,
+    sub_t=1,
+    sub_x=1,
 ):
     """Create dataloaders for train, validation, and test sets with normalization support"""
 
@@ -160,11 +207,25 @@ def get_dataloaders(
                 "\n***WARNING: If they exist, statistics provided in the main config file will be used! Make sure you are providing correct stats for the correct normalization option!***\n"
             )
 
+    print(f"Loading data from {data_path}")
+    print(f"This may take a few moments for large datasets...")
+
+    # Load the data
     data = np.load(data_path)
+    print(f"Raw data shape: {data.shape}")
+
+    # Reshape data to match the format used by NumpyMHDDataset
+    # (num_samples, nt, nx, ny, channels) -> (num_samples, channels, nt, nx, ny)
     reshaped_data = torch.from_numpy(data).float().permute(0, 4, 1, 2, 3)
+    print(f"Reshaped data: {reshaped_data.shape}")
+
     x_data = reshaped_data[:, :, 0:1]  # Shape: (num_samples, channels, 1, nx, ny)
     y_data = reshaped_data  # Shape: (num_samples, channels, timesteps, nx, ny)
+    print(f"Initial conditions shape: {x_data.shape}")
+    print(f"Full time evolution shape: {y_data.shape}")
+
     print(f"\nCreating dataloaders with train_ratio={train_ratio}, seed={seed}")
+    print(f"Subsampling factors: sub_t={sub_t}, sub_x={sub_x}")
 
     # Create datasets with the processed normalization config
     train_dataset = MHDDataset(
@@ -174,6 +235,8 @@ def get_dataloaders(
         split="train",
         train_ratio=train_ratio,
         seed=seed,
+        sub_t=sub_t,
+        sub_x=sub_x,
     )
     val_dataset = MHDDataset(
         x_data,
@@ -182,6 +245,8 @@ def get_dataloaders(
         split="val",
         train_ratio=train_ratio,
         seed=seed,
+        sub_t=sub_t,
+        sub_x=sub_x,
     )
     test_dataset = MHDDataset(
         x_data,
@@ -190,6 +255,8 @@ def get_dataloaders(
         split="test",
         train_ratio=train_ratio,
         seed=seed,
+        sub_t=sub_t,
+        sub_x=sub_x,
     )
 
     # Create and return dataloaders

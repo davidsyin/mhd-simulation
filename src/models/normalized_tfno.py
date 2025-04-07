@@ -3,6 +3,8 @@
 import torch
 import torch.nn as nn
 from neuralop.models import TFNO3d
+from neuralop.layers.channel_mlp import LinearChannelMLP
+from neuralop.layers.legacy_spectral_convolution import SpectralConv
 
 from .model_factory import register_model
 from ..activations import create_activation
@@ -54,18 +56,56 @@ def create_tfno_model(model_params):
         n_modes_width=model_params.get("modes2", 8),
         n_modes_depth=model_params.get("modes3", 8),
         hidden_channels=model_params.get("width", 8),
-        in_channels=model_params.get("in_dim", 3),
+        in_channels=model_params.get("in_dim", 6),
         out_channels=model_params.get("out_dim", 3),
         n_layers=model_params.get("n_layers", 4),
-        lifting_channels=model_params.get("fc_dim", 128),
-        projection_channels=model_params.get("fc_dim", 128),
-        non_linearity=non_linearity,
-        rank=model_params.get("rank", 0.5),
+        rank=model_params.get("rank", 4000),
         factorization=model_params.get("factorization", "tucker"),
-        domain_padding=domain_padding,
-        domain_padding_mode=model_params.get("domain_padding_mode", "symmetric"),
-        positional_embedding="grid",
+        positional_embedding=None,
     )
+
+    # Using Legacy SpectralConv seems to match the original implementation better,
+    # and there are slight gains in performance, accuracy, and convergence speed
+    # from using it, as the spectral block in the legacy version is naturally larger.
+    n_modes = (
+        model_params.get("modes1", 8),
+        model_params.get("modes2", 8),
+        model_params.get("modes3", 8),
+    )
+
+    convs = nn.ModuleList(
+        [
+            SpectralConv(
+                model_params.get("width", 8),
+                model_params.get("width", 8),
+                n_modes,
+                n_layers=model_params.get("n_layers", 4),
+                rank=model_params.get("rank", 4000),
+                fixed_rank_modes=False,
+                implementation="factorized",
+                separable=False,
+                factorization=model_params.get("factorization", "tucker"),
+                joint_factorization=True,
+                fno_block_precision="full",
+            )
+            for _ in range(model_params.get("n_layers", 4))
+        ]
+    )
+
+    # # Alternative lifting and projections
+    # model.lifting = LinearChannelMLP(
+    #     layers=[model_params.get("in_dim", 6), model_params.get("width", 8)]
+    # )
+    #
+    # model.projection = LinearChannelMLP(
+    #     layers=[
+    #         model_params.get("width", 8),
+    #         model_params.get("fc_dim", 128),
+    #         model_params.get("out_dim", 3),
+    #     ]
+    # )
+
+    model.fno_blocks.convs = convs
 
     # Wrap the model
     return NormalizedTFNO(model)

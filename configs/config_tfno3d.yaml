@@ -9,25 +9,25 @@ model_params:
   modes2: 8 # y dimension modes
   modes3: 8 # t dimension modes
   fc_dim: 128 # For lifting_channels and projection_channels
-  in_dim: 3 # u_x, u_y, A
+  in_dim: 6 # u_x, u_y, A
   out_dim: 3 # u_x, u_y, A
   activation: "gelu"
   pad_x: 0.00 # padding ratio in x direction
   pad_y: 0.00 # padding ratio in y direction
   pad_z: 0.00 # padding ratio in t direction
-  rank: 0.80 # Tensor factorization rank
+  rank: 4681 # Tensor factorization rank
   factorization: "cp"
 
 ###################
 ## Normalization options at dataset level
 normalization_params:
-  # type: "physics"
-  # input_norm: [1.0, 1.0, 2.5e-4]
-  # output_norm: [1.0, 1.0, 2.5e-4]
-  stats_file: "/u/skacmaz/NODs/stats/train_only_stats.npz"
+  type: "physics"
+  input_norm: [1.0, 1.0, 2.5e-4]
+  output_norm: [1.0, 1.0, 2.5e-4]
+  # stats_file: "/u/skacmaz/NODs/stats/train_only_stats.npz"
 
-  type: "minmax"
-  feature_range: [-1, 1]
+  # type: "minmax"
+  # feature_range: [-1, 1]
 
   # type: "standard"
   # # mean: [0.0, 0.0, 0.0] # Uncomment if you want to use your own stats
@@ -43,6 +43,8 @@ dataset_params:
   num_train: 950
   num_test: 50
   seed: 42
+  sub_t: 1 # Subsampling factor for time dimension
+  sub_x: 1 # Subsampling factor for spatial dimensions
 
 ###################
 ## Loss options

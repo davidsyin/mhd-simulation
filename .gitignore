@@ -17,6 +17,7 @@ Legacy/
 Analysis/.[tp][nx][tg]
 checkpoints/
 lr_finder_results/
+Debug_plots/
 
 # Ignore all logs
 *logs/

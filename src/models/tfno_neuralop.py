@@ -32,7 +32,7 @@ class TFNO_neuralop(nn.Module):
         return self.model(x)
 
 
-@register_model(model_type="tfno")
+@register_model(model_type="tfno-neuralop")
 def create_tfno_model(model_params):
     """Create a TFNO3d model from the neuraloperator library."""
 

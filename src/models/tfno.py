@@ -1,4 +1,6 @@
-# Adapted from with significant functional changes: https://github.com/NVIDIA/physicsnemo/tree/main/examples/cfd/mhd_pino/tfno
+# Adapted from with significant functional changes:
+# https://github.com/NVIDIA/physicsnemo/tree/main/examples/cfd/mhd_pino/tfno
+# which is based on arXiv:2302.08332 (2023).
 from typing import List, Tuple, Union
 
 import torch
@@ -34,8 +36,6 @@ class TFNO3DEncoder(nn.Module):
         Type of padding for spectral convolutions, by default "constant"
     activation_fn : nn.Module, optional
         Activation function, by default nn.GELU
-    coord_features : bool, optional
-        Use coordinate grid as additional feature map, by default True
     rank : float, optional
         Rank of the decomposition, by default 1.0
     factorization : {'CP', 'TT', 'Tucker'}, optional
@@ -56,7 +56,6 @@ class TFNO3DEncoder(nn.Module):
         padding: Union[int, List[int]] = 8,
         padding_type: str = "constant",
         activation_fn: nn.Module = nn.GELU(),
-        coord_features: bool = True,
         rank: float = 1.0,
         factorization: str = "cp",
         fixed_rank_modes: List[int] = None,
@@ -67,7 +66,6 @@ class TFNO3DEncoder(nn.Module):
         self.in_channels = in_channels
         self.num_fno_layers = num_fno_layers
         self.fno_width = fno_layer_size
-        self.coord_features = coord_features
         self.activation_fn = activation_fn
 
         # TensorLy arguments
@@ -75,10 +73,6 @@ class TFNO3DEncoder(nn.Module):
         self.factorization = factorization
         self.fixed_rank_modes = fixed_rank_modes
         self.decomposition_kwargs = decomposition_kwargs
-
-        # Add relative coordinate feature
-        if self.coord_features:
-            self.in_channels = self.in_channels + 3
 
         # Padding values for spectral conv
         if isinstance(padding, int):
@@ -145,10 +139,6 @@ class TFNO3DEncoder(nn.Module):
             self.conv_layers.append(nn.Conv3d(self.fno_width, self.fno_width, 1))
 
     def forward(self, x: Tensor) -> Tensor:
-        if self.coord_features:
-            coord_feat = self.meshgrid(list(x.shape), x.device)
-            x = torch.cat((x, coord_feat), dim=1)
-
         x = self.lift_network(x)
 
         x = F.pad(
@@ -167,30 +157,33 @@ class TFNO3DEncoder(nn.Module):
         x = x[..., : self.ipad[0], : self.ipad[1], : self.ipad[2]]
         return x
 
-    def meshgrid(self, shape: List[int], device: torch.device) -> Tensor:
-        """Creates 3D meshgrid feature
-
-        Parameters
-        ----------
-        shape : List[int]
-            Tensor shape
-        device : torch.device
-            Device model is on
-
-        Returns
-        -------
-        Tensor
-            Meshgrid tensor
-        """
-        bsize, size_x, size_y, size_z = shape[0], shape[2], shape[3], shape[4]
-        grid_x = torch.linspace(0, 1, size_x, dtype=torch.float32, device=device)
-        grid_y = torch.linspace(0, 1, size_y, dtype=torch.float32, device=device)
-        grid_z = torch.linspace(0, 1, size_z, dtype=torch.float32, device=device)
-        grid_x, grid_y, grid_z = torch.meshgrid(grid_x, grid_y, grid_z, indexing="ij")
-        grid_x = grid_x.unsqueeze(0).unsqueeze(0).repeat(bsize, 1, 1, 1, 1)
-        grid_y = grid_y.unsqueeze(0).unsqueeze(0).repeat(bsize, 1, 1, 1, 1)
-        grid_z = grid_z.unsqueeze(0).unsqueeze(0).repeat(bsize, 1, 1, 1, 1)
-        return torch.cat((grid_x, grid_y, grid_z), dim=1)
+    # # Uncomment this if you prefer to implement coord_features/grid-embedding
+    # # inside your model instead of dataset
+    #
+    # def meshgrid(self, shape: List[int], device: torch.device) -> Tensor:
+    #     """Creates 3D meshgrid feature
+    #
+    #     Parameters
+    #     ----------
+    #     shape : List[int]
+    #         Tensor shape
+    #     device : torch.device
+    #         Device model is on
+    #
+    #     Returns
+    #     -------
+    #     Tensor
+    #         Meshgrid tensor
+    #     """
+    #     bsize, size_x, size_y, size_z = shape[0], shape[2], shape[3], shape[4]
+    #     grid_x = torch.linspace(0, 1, size_x, dtype=torch.float32, device=device)
+    #     grid_y = torch.linspace(0, 1, size_y, dtype=torch.float32, device=device)
+    #     grid_z = torch.linspace(0, 1, size_z, dtype=torch.float32, device=device)
+    #     grid_x, grid_y, grid_z = torch.meshgrid(grid_x, grid_y, grid_z, indexing="ij")
+    #     grid_x = grid_x.unsqueeze(0).unsqueeze(0).repeat(bsize, 1, 1, 1, 1)
+    #     grid_y = grid_y.unsqueeze(0).unsqueeze(0).repeat(bsize, 1, 1, 1, 1)
+    #     grid_z = grid_z.unsqueeze(0).unsqueeze(0).repeat(bsize, 1, 1, 1, 1)
+    #     return torch.cat((grid_x, grid_y, grid_z), dim=1)
 
     def grid_to_points(self, value: Tensor) -> Tuple[Tensor, List[int]]:
         """converting from grid based (image) to point based representation
@@ -268,8 +261,6 @@ class TFNO(nn.Module):
         Type of padding for spectral convolutions, by default "constant"
     activation_fn : str, optional
         Activation function, by default "gelu"
-    coord_features : bool, optional
-        Use coordinate grid as additional feature map, by default True
     rank : float, optional
         Rank of the decomposition, by default 1.0
     factorization : {'CP', 'TT', 'Tucker'}, optional
@@ -318,7 +309,6 @@ class TFNO(nn.Module):
         padding: int = 8,
         padding_type: str = "constant",
         activation_fn: str = "gelu",
-        coord_features: bool = True,
         rank: float = 1.0,
         factorization: str = "cp",
         fixed_rank_modes: List[int] = None,
@@ -331,7 +321,6 @@ class TFNO(nn.Module):
         self.padding = padding
         self.padding_type = padding_type
         self.activation_fn = layers.get_activation(activation_fn)
-        self.coord_features = coord_features
         self.dimension = dimension
 
         # TensorLy arguments
@@ -359,7 +348,6 @@ class TFNO(nn.Module):
             padding=self.padding,
             padding_type=self.padding_type,
             activation_fn=self.activation_fn,
-            coord_features=self.coord_features,
             rank=self.rank,
             factorization=self.factorization,
             fixed_rank_modes=self.fixed_rank_modes,
@@ -375,17 +363,22 @@ class TFNO(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         # Fourier encoder
+        # print(f"\nx.shape before tfno: {x.shape}")
         y_latent = self.spec_encoder(x)
+        # print(f"y_latent shape after tfno: {y_latent.shape}")
 
         # Reshape to pointwise inputs if not a conv FC model
         y_shape = y_latent.shape
         y_latent, y_shape = self.spec_encoder.grid_to_points(y_latent)
+        # print(f"y_latent shape after grid to points: {y_latent.shape}")
 
         # Decoder
         y = self.decoder_net(y_latent)
+        # print(f"y shape after decoder net: {y.shape}")
 
         # Convert back into grid
         y = self.spec_encoder.points_to_grid(y, y_shape)
+        # print(f"y shape after points to grid: {y.shape}\n")
 
         return y
 
@@ -405,7 +398,6 @@ def tfno_model_default(params):
         padding=params.get("padding", 8),
         padding_type=params.get("padding_type", "constant"),
         activation_fn=params.get("activation_fn", "gelu"),
-        coord_features=params.get("coord_features", False),
         rank=params.get("rank", 1.0),
         factorization=params.get("factorization", "cp"),
         fixed_rank_modes=params.get("fixed_rank_modes", None),

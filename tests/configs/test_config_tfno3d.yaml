@@ -16,7 +16,7 @@ model_params:
   factorization: tucker
   fc_dim: 64
   in_dim: 6
-  model_type: tfno
+  model_type: tfno-neuralop
   modes1: 8
   modes2: 8
   modes3: 8
@@ -25,6 +25,7 @@ model_params:
   pad_x: 0.05
   pad_y: 0.05
   pad_z: 0.0
+  positional_embedding: null
   rank: 1.0
   width: 8
 normalization_params:

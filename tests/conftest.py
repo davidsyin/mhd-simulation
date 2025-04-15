@@ -137,7 +137,7 @@ def mini_config(mini_data_path, mini_config_path):
     # Define the configuration
     config = {
         "model_params": {
-            "model_type": "tfno",
+            "model_type": "tfno-neuralop",  # Updated to use the renamed model type
             "width": 8,
             "n_layers": 2,
             "modes1": 8,
@@ -152,6 +152,7 @@ def mini_config(mini_data_path, mini_config_path):
             "pad_z": 0.00,
             "rank": 1.00,
             "factorization": "tucker",
+            "positional_embedding": None,  # Add this for EmbeddedMHDDataset test
         },
         "normalization_params": {
             "type": "physics",
@@ -213,3 +214,23 @@ def mini_config(mini_data_path, mini_config_path):
         yaml.dump(config, f)
 
     return config
+
+
+@pytest.fixture
+def tfno_3d_config():
+    """Return a test configuration for the custom TFNO 3D model."""
+    return {
+        "model_params": {
+            "model_type": "tfno",
+            "variant": "3d",
+            "in_channels": 6,
+            "out_channels": 3,
+            "dimension": 3,
+            "latent_channels": 8,
+            "num_fno_layers": 2,
+            "num_fno_modes": 4,
+            "padding": 4,
+            "rank": 0.5,
+            "factorization": "cp",
+        }
+    }

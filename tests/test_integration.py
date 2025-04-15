@@ -3,9 +3,12 @@
 import pytest
 import torch
 import torch.nn as nn
+import numpy as np
 import os
 from src.utils.config import load_config
 from src.models.model_factory import create_model
+from src.models.tfno_neuralop import TFNO_neuralop
+from src.models.tfno import TFNO
 from src.data.dataset import get_dataloaders
 from src.losses.loss_factory import create_loss
 from src.training.validators.validator import validate
@@ -71,6 +74,74 @@ def test_full_pipeline(mini_config_path, generate_mini_mhd_data, device):
     assert not torch.isinf(torch.tensor(val_loss)).any(), "Validation loss is Inf"
 
     print(f"Validation loss: {val_loss}")
+
+
+def test_integration_with_custom_tfno(tfno_3d_config, generate_mini_mhd_data, device):
+    """Test integration with the custom TFNO 3D model."""
+    # Modify config to add necessary parameters
+    config = tfno_3d_config.copy()
+
+    # Add other necessary params
+    config["normalization_params"] = {
+        "type": "physics",
+        "input_norm": [1.0, 1.0, 2.5e-4],
+        "output_norm": [1.0, 1.0, 2.5e-4],
+    }
+    config["loss_params"] = {"type": "mse", "reduction": "mean"}
+    config["optimizer_params"] = {
+        "optimizer_type": "adam",
+        "lr": 0.001,
+        "betas": [0.9, 0.999],
+        "use_scheduler": False,
+    }
+
+    # Create model
+    model = create_model(config).to(device)
+    assert isinstance(model, TFNO), "Model should be TFNO"
+
+    # Load data
+    data = np.load(generate_mini_mhd_data)
+    reshaped_data = torch.from_numpy(data).float().permute(0, 4, 1, 2, 3)
+    x_data = reshaped_data[:2, :, 0:1]  # Just use 2 samples
+    y_data = reshaped_data[:2]  # Just use 2 samples
+
+    # Create simple dataset and dataloader
+    from torch.utils.data import TensorDataset, DataLoader
+
+    # Add grid embeddings for input
+    batch_size, channels, t, nx, ny = x_data.shape
+    t_grid = (
+        torch.linspace(0, 1, t).reshape(1, 1, t, 1, 1).repeat(batch_size, 1, 1, nx, ny)
+    )
+    x_grid = (
+        torch.linspace(0, 1, nx).reshape(1, 1, 1, nx, 1).repeat(batch_size, 1, t, 1, ny)
+    )
+    y_grid = (
+        torch.linspace(0, 1, ny).reshape(1, 1, 1, 1, ny).repeat(batch_size, 1, t, nx, 1)
+    )
+
+    # Combine grid and data
+    x_with_grid = torch.cat([t_grid, x_grid, y_grid, x_data], dim=1).to(device)
+    y_data = y_data.to(device)
+
+    # Create loss function
+    criterion = create_loss(config)
+
+    # Create optimizer
+    optimizer = create_optimizer(model.parameters(), config)
+
+    # Forward pass
+    model.train()
+    optimizer.zero_grad()
+    output = model(x_with_grid)
+    loss = criterion(output, y_data)
+
+    # Backward pass
+    loss.backward()
+    optimizer.step()
+
+    # Check loss is finite
+    assert torch.isfinite(loss), "Loss should be finite"
 
 
 def test_integration(mini_config_path, generate_mini_mhd_data, device):

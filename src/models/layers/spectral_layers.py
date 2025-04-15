@@ -120,13 +120,10 @@ class FactorizedSpectralConv3d(nn.Module):
         with torch.autocast(device_type="cuda", enabled=False):
             batchsize, channels, height, width, depth = x.shape
             dtype = x.dtype
-            # out_fft = torch.zeros(x.shape, device=x.device)
 
             # Compute Fourier coeffcients
-            # x = torch.fft.rfftn(x.float(), norm=self.fft_norm, dim=[-3, -2, -1])
             x_fft = torch.fft.rfftn(x.float(), norm=self.fft_norm, dim=[2, 3, 4])
-            # Multiply relevant Fourier modes
-            # x_fft = torch.view_as_real(x_fft)
+
             # The output will be of size (batch_size, self.out_channels, x.size(-2), x.size(-1)//2 + 1)
             out_fft = torch.zeros(
                 [batchsize, self.out_channels, height, width, depth // 2 + 1],
@@ -157,7 +154,9 @@ class FactorizedSpectralConv3d(nn.Module):
             # out_size = (int(height*super_res), int(width*super_res))
             x = torch.fft.irfftn(
                 out_fft, s=(height, width, depth), norm=self.fft_norm
-            ).type(dtype)  # (x.size(-2), x.size(-1))) +
+            ).type(
+                dtype
+            )  # (x.size(-2), x.size(-1))) +
             x = x + self.bias
 
         if self.mlp is not None:

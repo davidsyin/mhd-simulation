@@ -47,9 +47,11 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
         total_loss += loss.item()
         pbar.set_description(f"Train Loss: {loss.item():.6f}")
 
-    print(f"Epoch Statistics:")
+    print("=" * 30)
+    print(f"Train Loop Statistics:")
     print(f"- Data transfer: {data_time:.2f}s")
     print(f"- Forward pass: {forward_time:.2f}s")
-    print(f"- Backward pass: {backward_time:.2f}s")
+    print(f"- Backward pass: {backward_time:.2f}s\n")
+    print("=" * 30)
 
     return total_loss / len(train_loader)

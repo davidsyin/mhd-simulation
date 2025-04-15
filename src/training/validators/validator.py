@@ -118,12 +118,13 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
     avg_normalized_mse = normalized_mse / len(val_loader)
     avg_denormalized_mse = denormalized_mse / len(val_loader)
 
-    print(f"Validation Statistics:")
+    print(f"Validation Loop Statistics:")
     print(f"- Data transfer: {data_time:.2f}s")
     print(f"- Forward pass: {forward_time:.2f}s")
     if normalizer is not None:
         print(f"- Denormalization: {denorm_time:.2f}s")
 
+    print("=" * 30)
     torch.cuda.empty_cache()
 
     return avg_normalized_mse, avg_denormalized_mse

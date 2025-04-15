@@ -161,9 +161,9 @@ def train(config_path, data_path):
         # Log metrics to console
         epoch_time = time.time() - epoch_start_time
         print(
-            f"Epoch {epoch} ({epoch_time:.2f}s): Train Loss: {train_loss:.6f}, "
+            f"\nEpoch {epoch} ({epoch_time:.2f}s): Train Loss: {train_loss:.6f}, "
             f"Val Loss (Norm): {val_loss:.6f}, Val Loss (Denorm): {denorm_val_loss:.6f}, "
-            f"LR: {scheduler.get_last_lr()[0] if not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau) else optimizer.param_groups[0]['lr']}"
+            f"LR: {scheduler.get_last_lr()[0] if not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau) else optimizer.param_groups[0]['lr']}\n"
         )
 
         # Log to tensorboard
@@ -218,7 +218,7 @@ def train(config_path, data_path):
                 denorm_loss=denorm_val_loss,
             )
             print(
-                f"Saved best model at epoch {epoch} with val_loss {val_loss:.6f} (denorm: {denorm_val_loss:.6f})"
+                f"Saved best model at epoch {epoch} with val_loss {val_loss:.6f} (denorm: {denorm_val_loss:.6f})\n"
             )
 
             # Also track if this is the best denormalized loss
@@ -233,6 +233,8 @@ def train(config_path, data_path):
                 f"New best denormalized loss at epoch {epoch}: {denorm_val_loss:.6f} (norm: {val_loss:.6f})"
             )
 
+        print("=" * 110)
+        print("\n")
         # Explicitly free up memory
         torch.cuda.empty_cache()
 
@@ -240,8 +242,11 @@ def train(config_path, data_path):
     test_loss, denorm_test_loss = validate_with_denorm_metrics(
         model, test_loader, criterion, device
     )
-    print(f"Final test loss (normalized): {test_loss:.6f}")
+
+    print("=" * 30)
+    print(f"\nFinal test loss (normalized): {test_loss:.6f}")
     print(f"Final test loss (denormalized): {denorm_test_loss:.6f}")
+    print("=" * 30)
 
     tb_writer.add_scalar("Loss/test_normalized", test_loss, train_params["epochs"])
     tb_writer.add_scalar(

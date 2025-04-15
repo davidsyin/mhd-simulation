@@ -26,33 +26,27 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
 
     pbar = tqdm(train_loader)
     for x, y in pbar:
-        # Move to device - with non-blocking for better performance
         data_start = time.time()
         x = x.to(device, non_blocking=True)
         y = y.to(device, non_blocking=True)
         data_time += time.time() - data_start
 
-        # Zero gradients - set_to_none is faster than zero_grad()
         optimizer.zero_grad(set_to_none=True)
 
-        # Forward pass
         forward_start = time.time()
         x = x.contiguous()  # Ensure input is contiguous for better performance
         pred = model(x)
         loss = criterion(pred, y)
         forward_time += time.time() - forward_start
 
-        # Backward pass
         backward_start = time.time()
         loss.backward()
         optimizer.step()
         backward_time += time.time() - backward_start
 
-        # Log loss
         total_loss += loss.item()
         pbar.set_description(f"Train Loss: {loss.item():.6f}")
 
-    # Print performance metrics
     print(f"Epoch Statistics:")
     print(f"- Data transfer: {data_time:.2f}s")
     print(f"- Forward pass: {forward_time:.2f}s")

@@ -1,3 +1,4 @@
+# Adapted from with significant functional changes: https://github.com/NVIDIA/physicsnemo/tree/main/examples/cfd/mhd_pino/tfno
 from typing import List, Tuple, Union
 
 import torch
@@ -115,7 +116,6 @@ class TFNO3DEncoder(nn.Module):
         # Convert rank to integer if it's a fractional value
         actual_rank = self.rank
         if isinstance(self.rank, float) and 0 < self.rank < 1:
-            # Calculate minimum dimension
             min_dim = min(
                 self.fno_width,
                 self.fno_width,
@@ -126,7 +126,6 @@ class TFNO3DEncoder(nn.Module):
             actual_rank = max(1, int(min_dim * self.rank))
 
         for _ in range(self.num_fno_layers):
-            # Use actual_rank instead of self.rank
             self.spconv_layers.append(
                 FactorizedSpectralConv3d(
                     self.fno_width,
@@ -137,7 +136,7 @@ class TFNO3DEncoder(nn.Module):
                     n_layers=1,
                     bias=False,
                     scale="auto",
-                    rank=actual_rank,  # Use the integer version here
+                    rank=actual_rank,
                     factorization=self.factorization,
                     fixed_rank_modes=self.fixed_rank_modes,
                     decomposition_kwargs=self.decomposition_kwargs,

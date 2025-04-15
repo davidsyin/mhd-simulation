@@ -27,10 +27,8 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    # Set visible GPUs
     os.environ["CUDA_VISIBLE_DEVICES"] = args.gpus
 
-    # Print device information
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
     if device.type == "cuda":
@@ -39,18 +37,14 @@ if __name__ == "__main__":
         print(
             f"Available memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB"
         )
-
-    # Load configuration
     config = load_config(args.config)
     if args.data is None:
         args.data = (
             config["dataset_params"]["data_dir"] + config["dataset_params"]["data_file"]
         )
 
-    # Print model configuration
     print("\nModel Configuration:")
     for key, value in config["model_params"].items():
         print(f"{key}: {value}")
 
-    # Run training
     train(args.config, args.data)

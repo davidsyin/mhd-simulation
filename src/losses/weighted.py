@@ -22,19 +22,15 @@ def create_weighted_mse_loss(params):
             # and weights has length equal to number of channels
             self.weights = self.weights.to(pred.device)
 
-            # Compute MSE for each channel
             squared_diff = (pred - target) ** 2
 
-            # Apply weights along channel dimension
             if squared_diff.dim() > 2:  # Handle spatial dimensions
                 # Compute mean over spatial dimensions for each channel
                 channel_mse = squared_diff.mean(dim=tuple(range(2, squared_diff.dim())))
-                # Apply weights
                 weighted_mse = (channel_mse * self.weights.view(1, -1)).mean(dim=1)
             else:
                 weighted_mse = (squared_diff * self.weights).mean(dim=1)
 
-            # Apply reduction method
             if self.reduction == "mean":
                 return weighted_mse.mean()
             elif self.reduction == "sum":
@@ -60,17 +56,14 @@ def create_weighted_l1_loss(params):
         def forward(self, pred, target):
             self.weights = self.weights.to(pred.device)
 
-            # Compute L1 for each channel
             abs_diff = torch.abs(pred - target)
 
-            # Apply weights along channel dimension
             if abs_diff.dim() > 2:
                 channel_l1 = abs_diff.mean(dim=tuple(range(2, abs_diff.dim())))
                 weighted_l1 = (channel_l1 * self.weights.view(1, -1)).mean(dim=1)
             else:
                 weighted_l1 = (abs_diff * self.weights).mean(dim=1)
 
-            # Apply reduction method
             if self.reduction == "mean":
                 return weighted_l1.mean()
             elif self.reduction == "sum":

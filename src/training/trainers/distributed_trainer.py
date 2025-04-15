@@ -27,12 +27,10 @@ def train_epoch_distributed(
     model.train()
     total_loss = 0
 
-    # Performance tracking
     forward_time = 0
     backward_time = 0
     data_time = 0
 
-    # Create model copies for each GPU in advance
     models = [model]  # First GPU already has the model
     for i in range(1, num_gpus):
         temp_model = create_model(config).to(f"cuda:{i}")
@@ -68,10 +66,8 @@ def train_epoch_distributed(
             outputs = models[i](x_chunk)
             forward_time += (time.time() - forward_start) / num_gpus
 
-            # Calculate loss
             loss = criterion(outputs, y_chunk)
 
-            # Backward pass
             backward_start = time.time()
             loss.backward()
             backward_time += (time.time() - backward_start) / num_gpus
@@ -82,7 +78,6 @@ def train_epoch_distributed(
         for param in model.parameters():
             param.grad = param.grad / num_gpus
 
-        # Update parameters
         optimizer.step()
 
         # Update all other models with the new weights from the main model
@@ -91,18 +86,15 @@ def train_epoch_distributed(
                 {k: v for k, v in model.state_dict().items() if k != "_metadata"}
             )
 
-        # Calculate average loss for logging
         avg_loss = sum(all_losses) / len(all_losses)
         total_loss += avg_loss
         pbar.set_description(f"Train Loss: {avg_loss:.6f}")
 
-    # Print performance metrics
     print(f"Epoch Statistics:")
     print(f"- Data transfer: {data_time:.2f}s")
     print(f"- Forward pass: {forward_time:.2f}s")
     print(f"- Backward pass: {backward_time:.2f}s")
 
-    # Free memory
     torch.cuda.empty_cache()
 
     return total_loss / len(train_loader)

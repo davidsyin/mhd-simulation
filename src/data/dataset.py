@@ -41,7 +41,6 @@ class MHDDataset(Dataset):
         self.x_data = x_data
         self.y_data = y_data
 
-        # Store subsampling factors
         self.sub_t = sub_t
         self.sub_x = sub_x
 
@@ -54,7 +53,6 @@ class MHDDataset(Dataset):
             )
             print(f"Using {norm_type} normalization at dataset level")
 
-        # Set random seed for reproducibility
         np.random.seed(seed)
         print(f"Dataset using random seed: {seed} for {split} split")
 
@@ -80,7 +78,7 @@ class MHDDataset(Dataset):
 
         print(f"Initialized {split} dataset with {len(self.indices)} samples")
 
-        # Create coordinate system internally - exactly like in NumpyMHDDataset
+        # Create coordinate system internally
         self.t = np.linspace(t_range[0], t_range[1], self.timesteps)[::sub_t]
         self.x = np.linspace(x_range[0], x_range[1], self.nx)[::sub_x]
         self.y = np.linspace(y_range[0], y_range[1], self.ny)[::sub_x]
@@ -93,7 +91,7 @@ class MHDDataset(Dataset):
             f"Dataset initialized with dimensions: nt={self.nt}, nx={self.nx}, ny={self.ny}"
         )
 
-        # Precompute grid tensors (once, not per sample) - exactly like in NumpyMHDDataset
+        # Precompute grid tensors (once, not per sample)
         t_tensor = torch.from_numpy(self.t.astype(np.float32))
         x_tensor = torch.from_numpy(self.x.astype(np.float32))
         y_tensor = torch.from_numpy(self.y.astype(np.float32))
@@ -113,13 +111,10 @@ class MHDDataset(Dataset):
         """
         sample_idx = self.indices[idx]
 
-        # Get subsampled data - match NumpyMHDDataset approach
-        # Extract data with subsampling
         sample_data = self.y_data[
             sample_idx, :, :: self.sub_t, :: self.sub_x, :: self.sub_x
         ]
 
-        # Apply normalization if specified
         if self.normalizer:
             # Add batch dimension for normalization
             sample_data = sample_data.unsqueeze(0)
@@ -130,7 +125,6 @@ class MHDDataset(Dataset):
             # print("v:", sample_data[0, 1, 0, 0, 0].item())
             # print("A:", sample_data[0, 2, 0, 0, 0].item())
 
-            # Use the normalize method from the normalizer
             sample_data = self.normalizer.normalize(sample_data)
 
             # # Debug print
@@ -142,23 +136,18 @@ class MHDDataset(Dataset):
             # Remove batch dimension
             sample_data = sample_data.squeeze(0)
 
-        # Ensure data is a tensor
         data = sample_data.float()
 
         # Initial condition handling - create data0 by repeating first timestep
-        # This matches exactly what NumpyMHDDataset does
         data0 = data[:, 0:1].repeat(1, self.nt, 1, 1)
 
         # Reshape to match grid tensors [nt, nx, ny, channels]
         data0 = data0.permute(1, 2, 3, 0)
 
-        # Create inputs using precomputed grid tensors
-        # Matching exactly what NumpyMHDDataset does
         inputs = torch.cat(
             [self.grid_t, self.grid_x, self.grid_y, data0], dim=-1
         ).permute(3, 0, 1, 2)
 
-        # Prepare outputs
         outputs = data.permute(0, 1, 2, 3)
 
         return inputs, outputs
@@ -180,22 +169,18 @@ def get_dataloaders(
     if normalization_config and "normalization_params" in normalization_config:
         norm_params = normalization_config["normalization_params"]
 
-        # Check if there's a stats_file parameter
         if "stats_file" in norm_params and norm_params["stats_file"].endswith(".npz"):
             stats_file = norm_params["stats_file"]
-            # Check if file exists
             if not os.path.exists(stats_file):
                 raise FileNotFoundError(f"Statistics file not found: {stats_file}")
 
             print(f"Loading normalization statistics from {stats_file}")
 
-            # Load the .npz file
             stats = np.load(stats_file)
 
             # Create a copy of the config to avoid modifying the original
             normalization_config = {"normalization_params": norm_params.copy()}
 
-            # Update normalization parameters with loaded values
             for key in stats.files:
                 normalization_config["normalization_params"][key] = (
                     stats[key].tolist() if hasattr(stats[key], "tolist") else stats[key]
@@ -210,11 +195,9 @@ def get_dataloaders(
     print(f"Loading data from {data_path}")
     print(f"This may take a few moments for large datasets...")
 
-    # Load the data
     data = np.load(data_path)
     print(f"Raw data shape: {data.shape}")
 
-    # Reshape data to match the format used by NumpyMHDDataset
     # (num_samples, nt, nx, ny, channels) -> (num_samples, channels, nt, nx, ny)
     reshaped_data = torch.from_numpy(data).float().permute(0, 4, 1, 2, 3)
     print(f"Reshaped data: {reshaped_data.shape}")
@@ -259,7 +242,6 @@ def get_dataloaders(
         sub_x=sub_x,
     )
 
-    # Create and return dataloaders
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,

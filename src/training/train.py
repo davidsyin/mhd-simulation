@@ -32,13 +32,10 @@ def train(config_path, data_path):
     # Set CUDA benchmark for better performance
     torch.backends.cudnn.benchmark = True
 
-    # Load config
     config = load_config(config_path)
 
-    # Set device
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    # Get GPU count
     n_gpus = torch.cuda.device_count()
 
     # Create logs directory
@@ -46,22 +43,18 @@ def train(config_path, data_path):
     log_dir = wandb_config.get("wandb_dir", "./logs")
     os.makedirs(log_dir, exist_ok=True)
 
-    # Initialize TensorBoard logger
     tb_writer = SummaryWriter(log_dir=os.path.join(log_dir, "tensorboard"))
     print(
         f"\nTensorBoard logs will be saved to {os.path.join(log_dir, 'tensorboard')}\n"
     )
 
-    # Get original batch size and create dataloaders
     batch_size = config["train_loader_params"]["batch_size"]
 
-    # Get dataset parameters
     train_ratio = config["dataset_params"]["num_train"] / (
         config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
     )
     seed = config["dataset_params"].get("seed", 42)
 
-    # Get subsampling factors from config
     sub_t = config["dataset_params"].get("sub_t", 1)
     sub_x = config["dataset_params"].get("sub_x", 1)
 
@@ -76,7 +69,6 @@ def train(config_path, data_path):
             f"Using {config['normalization_params'].get('type', 'unknown')} normalization at dataset level\n"
         )
 
-    # Create dataloaders with normalization and proper seed
     print("Creating dataloaders...")
     start_time = time.time()
     train_loader, val_loader, test_loader = get_dataloaders(
@@ -91,27 +83,22 @@ def train(config_path, data_path):
     )
     print(f"Dataloaders created in {time.time() - start_time:.2f} seconds")
 
-    # Check shapes from a batch to debug
     print("Checking data shapes from first batch:")
     x_batch, y_batch = next(iter(train_loader))
     print(f"Input batch shape: {x_batch.shape}")
     print(f"Output batch shape: {y_batch.shape}")
 
-    # Create model
     print("Creating model...")
     model = create_model(config)
 
-    # Move model to primary device
     model = model.to(device)
 
     print(
         f"\nModel created with {sum(p.numel() for p in model.parameters())} parameters\n"
     )
 
-    # Define loss function using the factory
     criterion = create_loss(config)
 
-    # Define optimizer
     optimizer_params = config["optimizer_params"]
     optimizer = create_optimizer(model.parameters(), config)
     print(f"Using {optimizer_params.get('optimizer_type')} optimizer\n")
@@ -150,18 +137,15 @@ def train(config_path, data_path):
     print("\nStarting training loop...")
     torch.cuda.empty_cache()  # Clear memory before starting training
 
-    # Training loop
     for epoch in range(start_epoch, train_params["epochs"]):
         torch.backends.cudnn.benchmark = True
         epoch_start_time = time.time()
 
-        # Train with custom multi-GPU implementation
         if n_gpus > 1:
             train_loss = train_epoch_distributed(
                 model, config, train_loader, optimizer, criterion, n_gpus
             )
         else:
-            # Fallback to original training for single GPU
             train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
 
         # Validate with both normalized and denormalized metrics
@@ -169,9 +153,8 @@ def train(config_path, data_path):
             model, val_loader, criterion, device
         )
 
-        # Update scheduler
         if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-            scheduler.step(val_loss)  # Still use normalized loss for LR scheduling
+            scheduler.step(val_loss)
         else:
             scheduler.step()
 

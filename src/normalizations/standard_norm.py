@@ -43,7 +43,6 @@ class StandardNormalization(nn.Module):
         if self.mean is None or self.std is None:
             return x
 
-        # Reshape for broadcasting with 5D tensor (batch, channels, t, x, y)
         mean = self.mean.view(1, -1, 1, 1, 1)
         std = self.std.view(1, -1, 1, 1, 1)
 
@@ -54,7 +53,6 @@ class StandardNormalization(nn.Module):
         if self.mean is None or self.std is None:
             return x
 
-        # Reshape for broadcasting with 5D tensor (batch, channels, t, x, y)
         mean = self.mean.view(1, -1, 1, 1, 1)
         std = self.std.view(1, -1, 1, 1, 1)
 

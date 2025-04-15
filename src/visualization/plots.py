@@ -23,7 +23,6 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
     plots_dir = os.path.join(output_dir, "prediction_plots", f"epoch_{epoch}")
     os.makedirs(plots_dir, exist_ok=True)
 
-    # Check if the dataset has a normalizer attribute
     has_dataset_normalizer = (
         hasattr(val_loader.dataset, "normalizer")
         and val_loader.dataset.normalizer is not None
@@ -50,16 +49,13 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
         print("No normalization found - visualizing raw data")
 
     with torch.no_grad():
-        # Get a batch of validation data
         try:
             x, y = next(iter(val_loader))
             x, y = x.to(device), y.to(device)
 
-            # Check if input has more channels than output (indicating grid embeddings)
             has_grid_embeddings = x.shape[1] > y.shape[1]
             data_channels = y.shape[1]  # Number of data channels (3 for u_x, u_y, A)
 
-            # Log information about the shapes
             print(f"Input shape: {x.shape}, Output shape: {y.shape}")
             print(f"Detected grid embeddings: {has_grid_embeddings}")
 
@@ -75,7 +71,6 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
                 # All channels are data
                 data_channel_indices = list(range(x.shape[1]))
 
-            # Forward pass
             pred = model(x)
 
             # Denormalize the data if a normalizer is available
@@ -86,14 +81,12 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
                     x_data_only = x[:, data_channel_indices]
                     x_data_denorm = normalizer.denormalize(x_data_only)
 
-                    # Keep the grid embeddings as is
                     x_denorm = x.clone()
                     x_denorm[:, data_channel_indices] = x_data_denorm
                 else:
                     # If no grid embeddings, denormalize the whole input
                     x_denorm = normalizer.denormalize(x)
 
-                # Denormalize outputs and predictions
                 y_denorm = normalizer.denormalize(y)
                 pred_denorm = normalizer.denormalize(pred)
             else:
@@ -102,25 +95,20 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
                 y_denorm = y
                 pred_denorm = pred
 
-            # Convert to numpy for plotting (must be on CPU)
             x_np = x_denorm.cpu().numpy()
             y_np = y_denorm.cpu().numpy()
             pred_np = pred_denorm.cpu().numpy()
 
-            # Plot predictions
             for i in range(min(num_samples, x.shape[0])):
-                # Change to 3x4 subplot layout
                 fig, axes = plt.subplots(3, 4, figsize=(20, 15))
 
                 # Channel names for better interpretability
                 channel_names = ["u_x", "u_y", "A"]
-                cmap = "RdBu_r"  # Use RdBu_r colormap for all plots
+                cmap = "RdBu_r"
 
                 # First column: initial conditions
                 for c in range(data_channels):
-                    # Use proper channel indexing for inputs with grid embeddings
                     if has_grid_embeddings:
-                        # Use the corresponding data channel from the input
                         input_channel_idx = data_channel_indices[c]
                         im = axes[c, 0].imshow(x_np[i, input_channel_idx, 0], cmap=cmap)
                     else:

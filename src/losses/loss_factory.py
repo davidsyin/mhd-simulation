@@ -38,7 +38,6 @@ def create_loss(config):
     Returns:
         Loss function instance
     """
-    # Get loss configuration
     loss_config = config.get("loss_params", {})
     loss_type = loss_config.get("type", "mse").lower()
 

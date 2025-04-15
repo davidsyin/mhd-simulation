@@ -39,7 +39,6 @@ class EmbeddedMHDDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        # Get the data sample (3 channels)
         x = self.data[idx]  # [3, 1, nx, ny]
         y = self.target[idx]  # [3, nt, nx, ny]
 
@@ -51,23 +50,17 @@ class EmbeddedMHDDataset(Dataset):
 
             x, y = x.squeeze(0), y.squeeze(0)
 
-        # Get dimensions
         nx, ny = x.shape[2], x.shape[3]
         nt = y.shape[1]  # Number of timesteps from target
 
-        # Expand input from single timestep to all timesteps
         x_expanded = x.expand(3, nt, nx, ny)  # [3, nt, nx, ny]
 
-        # Create coordinate tensors for all timesteps
-        # For x and y coords, use same values for all timesteps
         x_coords = self.x_grid.view(1, 1, nx, 1).expand(1, nt, nx, ny)
         y_coords = self.y_grid.view(1, 1, 1, ny).expand(1, nt, nx, ny)
 
-        # For t coordinates, create a sequence from 0 to 1 across timesteps
         t_values = torch.linspace(0, 1, nt, dtype=torch.float32)
         t_coords = t_values.view(1, nt, 1, 1).expand(1, nt, nx, ny)
 
-        # Concatenate input with coordinates
         x_embedded = torch.cat(
             [
                 t_coords,  # [1, nt, nx, ny]
@@ -98,24 +91,19 @@ class EmbeddedMHDDataset(Dataset):
         if normalization_config and "normalization_params" in normalization_config:
             norm_params = normalization_config["normalization_params"]
 
-            # Check if there's a stats_file parameter
             if "stats_file" in norm_params and norm_params["stats_file"].endswith(
                 ".npz"
             ):
                 stats_file = norm_params["stats_file"]
-                # Check if file exists
                 if not os.path.exists(stats_file):
                     raise FileNotFoundError(f"Statistics file not found: {stats_file}")
 
                 print(f"Loading normalization statistics from {stats_file}")
 
-                # Load the .npz file
                 stats = np.load(stats_file)
 
-                # Create a copy of the config to avoid modifying the original
                 normalization_config = {"normalization_params": norm_params.copy()}
 
-                # Update normalization parameters with loaded values
                 for key in stats.files:
                     normalization_config["normalization_params"][key] = (
                         stats[key].tolist()

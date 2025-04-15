@@ -31,7 +31,6 @@ def validate(model, val_loader, criterion, device):
             y = y.to(device, non_blocking=True)
             data_time += time.time() - data_start
 
-            # Forward pass
             forward_start = time.time()
             x = x.contiguous()  # Ensure input is contiguous
             pred = model(x)
@@ -40,7 +39,6 @@ def validate(model, val_loader, criterion, device):
 
             total_loss += loss.item()
 
-    # Print performance statistics
     print(f"Validation Statistics:")
     print(f"- Data transfer: {data_time:.2f}s")
     print(f"- Forward pass: {forward_time:.2f}s")
@@ -72,7 +70,6 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
     forward_time = 0
     denorm_time = 0
 
-    # Check if dataset has a normalizer
     has_normalizer = (
         hasattr(val_loader.dataset, "normalizer")
         and val_loader.dataset.normalizer is not None
@@ -94,7 +91,6 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
             y = y.to(device, non_blocking=True)
             data_time += time.time() - data_start
 
-            # Forward pass
             forward_start = time.time()
             x = x.contiguous()  # Ensure input is contiguous
             pred = model(x)
@@ -107,34 +103,27 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
             # Calculate denormalized MSE if normalizer exists
             if normalizer is not None:
                 denorm_start = time.time()
-                # Make sure normalizer is on the right device
                 if hasattr(normalizer, "to"):
                     normalizer = normalizer.to(device)
 
-                # Denormalize predictions and ground truth
                 pred_denorm = normalizer.denormalize(pred)
                 y_denorm = normalizer.denormalize(y)
 
-                # Calculate denormalized MSE
                 denorm_loss = mse_criterion(pred_denorm, y_denorm)
                 denormalized_mse += denorm_loss.item()
                 denorm_time += time.time() - denorm_start
             else:
-                # If no normalizer, denormalized is same as normalized
                 denormalized_mse = normalized_mse
 
-    # Calculate averages
     avg_normalized_mse = normalized_mse / len(val_loader)
     avg_denormalized_mse = denormalized_mse / len(val_loader)
 
-    # Print performance statistics
     print(f"Validation Statistics:")
     print(f"- Data transfer: {data_time:.2f}s")
     print(f"- Forward pass: {forward_time:.2f}s")
     if normalizer is not None:
         print(f"- Denormalization: {denorm_time:.2f}s")
 
-    # Free memory
     torch.cuda.empty_cache()
 
     return avg_normalized_mse, avg_denormalized_mse

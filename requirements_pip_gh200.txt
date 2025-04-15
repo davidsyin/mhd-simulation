@@ -3,6 +3,7 @@ blobfile
 einops
 matplotlib
 neuraloperator
+nvidia-physicsnemo
 packaging
 Pillow
 PyYAML
@@ -11,8 +12,6 @@ torchprofile
 tqdm
 wandb
 
-# PyTorch nightly packages
---pre
---extra-index-url https://download.pytorch.org/whl/nightly/cu126
-torch
-torchvision
+--extra-index-url https://download.pytorch.org/whl/cu126
+torch==2.6.0
+torchvision==0.21.0

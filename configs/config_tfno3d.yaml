@@ -2,21 +2,22 @@
 ## Model options
 model_params:
   model_type: "tfno"
-  # model_variant: "time_evolution" # optional
+  model_variant: "3d" # optional
   width: 8 # hidden_channels in TFNO3d
   n_layers: 4 # n_layers in TFNO3d
   modes1: 8 # x dimension modes
   modes2: 8 # y dimension modes
   modes3: 8 # t dimension modes
-  fc_dim: 128 # For lifting_channels and projection_channels
+  fc_dim: 256 # For lifting_channels and projection_channels
   in_dim: 6 # u_x, u_y, A
   out_dim: 3 # u_x, u_y, A
   activation: "gelu"
   pad_x: 0.00 # padding ratio in x direction
   pad_y: 0.00 # padding ratio in y direction
   pad_z: 0.00 # padding ratio in t direction
-  rank: 4681 # Tensor factorization rank
+  rank: 0.5 # Tensor factorization rank
   factorization: "cp"
+  positional_embedding: False
 
 ###################
 ## Normalization options at dataset level
@@ -25,7 +26,7 @@ normalization_params:
   input_norm: [1.0, 1.0, 2.5e-4]
   output_norm: [1.0, 1.0, 2.5e-4]
   # stats_file: "/u/skacmaz/NODs/stats/train_only_stats.npz"
-
+  #
   # type: "minmax"
   # feature_range: [-1, 1]
 
@@ -36,8 +37,10 @@ normalization_params:
 ###################
 ## Dataset options
 dataset_params:
-  data_dir: "/work/hdd/begd/skacmaz/NODs_mhd_data_Re100/"
-  data_file: "mhd_data_3channel_Re100.npy"
+  data_dir : "/u/skacmaz/"
+  data_file : "small_mhd_data.npy"
+  # data_dir: "/work/hdd/begd/skacmaz/NODs_mhd_data_Re100/"
+  # data_file: "mhd_data_3channel_Re100.npy"
   name: "MHD_TFNO3d"
   num: 1000
   num_train: 950
@@ -68,22 +71,22 @@ loss_params:
 ###################
 ## Dataloader options
 train_loader_params:
-  batch_size: 1
+  batch_size: 8
   shuffle: True
   num_workers: 1
   pin_memory: True
 
 val_loader_params:
-  batch_size: 1
+  batch_size: 8
   shuffle: False
   num_workers: 1
-  pin_memory: True
+  pin_memory: False
 
 test_loader_params:
-  batch_size: 1
+  batch_size: 8
   shuffle: False
   num_workers: 1
-  pin_memory: True
+  pin_memory: False
 
 ###################
 ## Optimizer options
@@ -108,14 +111,14 @@ optimizer_params:
 train_params:
   epochs: 100
   ckpt_freq: 50
-  ckpt_path: "checkpoints/MHD_TFNO3d/model"
+  ckpt_path: "checkpoints/model"
   load_ckpt: "" # Leave empty to start from scratch
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logs"
+  wandb_dir: "/u/skacmaz/NODs/logs/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_TFNO3d"
   wandb_num_plots: 2
-  wandb_plot_freq: 20
+  wandb_plot_freq: 5

@@ -63,6 +63,7 @@ def _register_all_models():
     constructor functions are registered with the registry.
     """
     # Import all model modules
-    from . import normalized_tfno
+    # from . import normalized_tfno
+    from . import tfno
 
     # Add imports for future model files here

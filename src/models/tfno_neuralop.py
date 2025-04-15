@@ -3,14 +3,15 @@
 import torch
 import torch.nn as nn
 from neuralop.models import TFNO3d
-from neuralop.layers.channel_mlp import LinearChannelMLP
-from neuralop.layers.legacy_spectral_convolution import SpectralConv
+
+# from neuralop.layers.channel_mlp import LinearChannelMLP
+# from neuralop.layers.legacy_spectral_convolution import SpectralConv
 
 from .model_factory import register_model
 from ..activations import create_activation
 
 
-class NormalizedTFNO(nn.Module):
+class TFNO_neuralop(nn.Module):
     """
     TFNO3d model wrapper.
 
@@ -62,35 +63,36 @@ def create_tfno_model(model_params):
         rank=model_params.get("rank", 4000),
         factorization=model_params.get("factorization", "tucker"),
         positional_embedding=None,
+        # positional_embedding=model_params.get("positional_embedding", "grid"),
     )
 
-    # Using Legacy SpectralConv seems to match the original implementation better,
-    # and there are slight gains in performance, accuracy, and convergence speed
-    # from using it, as the spectral block in the legacy version is naturally larger.
-    n_modes = (
-        model_params.get("modes1", 8),
-        model_params.get("modes2", 8),
-        model_params.get("modes3", 8),
-    )
-
-    convs = nn.ModuleList(
-        [
-            SpectralConv(
-                model_params.get("width", 8),
-                model_params.get("width", 8),
-                n_modes,
-                n_layers=model_params.get("n_layers", 4),
-                rank=model_params.get("rank", 4000),
-                fixed_rank_modes=False,
-                implementation="factorized",
-                separable=False,
-                factorization=model_params.get("factorization", "tucker"),
-                joint_factorization=True,
-                fno_block_precision="full",
-            )
-            for _ in range(model_params.get("n_layers", 4))
-        ]
-    )
+    # # Using Legacy SpectralConv seems to match the original implementation better,
+    # # and there are slight gains in performance, accuracy, and convergence speed
+    # # from using it, as the spectral block in the legacy version is naturally larger.
+    # n_modes = (
+    #     model_params.get("modes1", 8),
+    #     model_params.get("modes2", 8),
+    #     model_params.get("modes3", 8),
+    # )
+    #
+    # convs = nn.ModuleList(
+    #     [
+    #         SpectralConv(
+    #             model_params.get("width", 8),
+    #             model_params.get("width", 8),
+    #             n_modes,
+    #             n_layers=model_params.get("n_layers", 4),
+    #             rank=model_params.get("rank", 4000),
+    #             fixed_rank_modes=False,
+    #             implementation="factorized",
+    #             separable=False,
+    #             factorization=model_params.get("factorization", "tucker"),
+    #             joint_factorization=True,
+    #             fno_block_precision="full",
+    #         )
+    #         for _ in range(model_params.get("n_layers", 4))
+    #     ]
+    # )
 
     # # Alternative lifting and projections
     # model.lifting = LinearChannelMLP(
@@ -105,7 +107,7 @@ def create_tfno_model(model_params):
     #     ]
     # )
 
-    model.fno_blocks.convs = convs
+    # model.fno_blocks.convs = convs
 
     # Wrap the model
-    return NormalizedTFNO(model)
+    return TFNO_neuralop(model)

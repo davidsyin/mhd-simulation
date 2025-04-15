@@ -243,10 +243,10 @@ def train(config_path, data_path):
         model, test_loader, criterion, device
     )
 
-    print("=" * 30)
+    print("=" * 40)
     print(f"\nFinal test loss (normalized): {test_loss:.6f}")
     print(f"Final test loss (denormalized): {denorm_test_loss:.6f}")
-    print("=" * 30)
+    print("=" * 40)
 
     tb_writer.add_scalar("Loss/test_normalized", test_loss, train_params["epochs"])
     tb_writer.add_scalar(

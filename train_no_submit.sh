@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=mhd_no_train
-#SBATCH --account=bdwx-dtai-gh
-#SBATCH --partition=ghx4
+#SBATCH --account=begd-dtai-gh
+#SBATCH --partition=ghx4-interactive
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 # #SBATCH --cpus-per-task=1

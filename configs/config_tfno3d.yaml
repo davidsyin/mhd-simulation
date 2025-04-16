@@ -12,9 +12,9 @@ model_params:
   out_channels: 3 # u_x, u_y, A
   decoder_layers: 1
   dimension: 3
-  latent_channels: 32 
+  latent_channels: 8 # aka fno_layer_size and fno_width
   num_fno_layers: 4 # n_layers in TFNO3d
-  num_fno_modes: 8
+  num_fno_modes: [8, 8, 8]
   padding: [5, 0, 0]
   padding_type: "constant"
   activation_fn: "gelu"

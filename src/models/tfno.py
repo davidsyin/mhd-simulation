@@ -115,18 +115,6 @@ class TFNO3DEncoder(nn.Module):
         self.spconv_layers = nn.ModuleList()
         self.conv_layers = nn.ModuleList()
 
-        # Convert rank to integer if it's a fractional value
-        actual_rank = self.rank
-        if isinstance(self.rank, float) and 0 < self.rank < 1:
-            min_dim = min(
-                self.fno_width,
-                self.fno_width,
-                num_fno_modes[0],
-                num_fno_modes[1],
-                num_fno_modes[2],
-            )
-            actual_rank = max(1, int(min_dim * self.rank))
-
         for _ in range(self.num_fno_layers):
             self.spconv_layers.append(
                 FactorizedSpectralConv3d(
@@ -136,7 +124,7 @@ class TFNO3DEncoder(nn.Module):
                     num_fno_modes[1],
                     num_fno_modes[2],
                     n_layers=self.num_fno_layers,
-                    rank=actual_rank,
+                    rank=self.rank,
                     factorization=self.factorization,
                     fixed_rank_modes=self.fixed_rank_modes,
                     decomposition_kwargs=self.decomposition_kwargs,

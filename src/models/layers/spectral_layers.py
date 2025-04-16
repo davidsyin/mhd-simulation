@@ -368,13 +368,6 @@ class FactorizedSpectralConv3d(nn.Module):
                 fixed_rank_modes = None
 
         if factorization is not None:
-            # Convert fractional rank to an integer if needed
-            actual_rank = rank
-            if isinstance(rank, float) and 0 < rank < 1:
-                # Calculate rank based on tensor shape
-                min_dim = min(in_channels, out_channels, modes1, modes2, modes3)
-                actual_rank = max(1, int(min_dim * rank))
-
             self.weight = tltorch.FactorizedTensor.new(
                 (
                     4 * n_layers,
@@ -384,7 +377,7 @@ class FactorizedSpectralConv3d(nn.Module):
                     self.modes2,
                     self.modes3,
                 ),
-                rank=actual_rank,  # Use the integer rank
+                rank=self.rank,  # Use the integer rank
                 factorization=factorization,
                 dtype=torch.cfloat,
                 fixed_rank_modes=fixed_rank_modes,

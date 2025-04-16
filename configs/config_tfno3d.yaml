@@ -8,7 +8,7 @@ model_params:
   # modes2: 8 # y dimension modes
   # modes3: 8 # t dimension modes
   fc_dim: 256 # For lifting_channels and projection_channels
-  in_channels: 3 # u_x, u_y, A
+  in_channels: 6 # u_x, u_y, A
   out_channels: 3 # u_x, u_y, A
   decoder_layers: 1
   dimension: 3
@@ -18,7 +18,7 @@ model_params:
   padding: [5, 0, 0]
   padding_type: "constant"
   activation_fn: "gelu"
-  coord_features: True
+  coord_features: False
   # pad_x: 0.00 # padding ratio in x direction
   # pad_y: 0.00 # padding ratio in y direction
   # pad_z: 0.00 # padding ratio in t direction

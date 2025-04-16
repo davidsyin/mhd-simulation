@@ -3,21 +3,28 @@
 model_params:
   model_type: "tfno"
   model_variant: "3d" # optional
-  width: 8 # hidden_channels in TFNO3d
-  n_layers: 4 # n_layers in TFNO3d
-  modes1: 8 # x dimension modes
-  modes2: 8 # y dimension modes
-  modes3: 8 # t dimension modes
+  # width: 8 # hidden_channels in TFNO3d
+  # modes1: 8 # x dimension modes
+  # modes2: 8 # y dimension modes
+  # modes3: 8 # t dimension modes
   fc_dim: 256 # For lifting_channels and projection_channels
-  in_dim: 6 # u_x, u_y, A
-  out_dim: 3 # u_x, u_y, A
-  activation: "gelu"
-  pad_x: 0.00 # padding ratio in x direction
-  pad_y: 0.00 # padding ratio in y direction
-  pad_z: 0.00 # padding ratio in t direction
+  in_channels: 3 # u_x, u_y, A
+  out_channels: 3 # u_x, u_y, A
+  decoder_layers: 1
+  dimension: 3
+  latent_channels: 32 
+  num_fno_layers: 4 # n_layers in TFNO3d
+  num_fno_modes: 8
+  padding: [5, 0, 0]
+  padding_type: "constant"
+  activation_fn: "gelu"
+  coord_features: True
+  # pad_x: 0.00 # padding ratio in x direction
+  # pad_y: 0.00 # padding ratio in y direction
+  # pad_z: 0.00 # padding ratio in t direction
   rank: 0.5 # Tensor factorization rank
   factorization: "cp"
-  positional_embedding: False
+  # positional_embedding: False
 
 ###################
 ## Normalization options at dataset level

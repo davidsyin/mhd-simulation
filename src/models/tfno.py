@@ -414,7 +414,7 @@ def tfno_model_default(params):
         padding=params.get("padding", 8),
         padding_type=params.get("padding_type", "constant"),
         activation_fn=params.get("activation_fn", "gelu"),
-        coord_features=True,
+        coord_features=params.get("coord_features", False),
         rank=params.get("rank", 1.0),
         factorization=params.get("factorization", "cp"),
         fixed_rank_modes=params.get("fixed_rank_modes", None),

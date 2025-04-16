@@ -23,6 +23,11 @@ def validate(model, val_loader, criterion, device):
     data_time = 0
     forward_time = 0
 
+    # Check if we're using physics-informed loss
+    use_physics_loss = (
+        hasattr(criterion, "requires_input_data") and criterion.requires_input_data
+    )
+
     with torch.no_grad():
         for x, y in tqdm(val_loader, desc="Validating"):
             # Transfer data with non_blocking=True for better performance
@@ -34,7 +39,10 @@ def validate(model, val_loader, criterion, device):
             forward_start = time.time()
             x = x.contiguous()  # Ensure input is contiguous
             pred = model(x)
-            loss = criterion(pred, y)
+            if use_physics_loss:
+                loss = criterion(pred, y, x)
+            else:
+                loss = criterion(pred, y)
             forward_time += time.time() - forward_start
 
             total_loss += loss.item()
@@ -76,6 +84,11 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
     )
     mse_criterion = nn.MSELoss(reduction="mean")
 
+    # Check if we're using physics-informed loss
+    use_physics_loss = (
+        hasattr(criterion, "requires_input_data") and criterion.requires_input_data
+    )
+
     # Create a copy of the normalizer to avoid modifying the original
     normalizer = None
     if has_normalizer:
@@ -97,8 +110,12 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
             forward_time += time.time() - forward_start
 
             # Calculate normalized loss (used for training)
-            normalized_loss = criterion(pred, y)
-            normalized_mse += normalized_loss.item()
+            if use_physics_loss:
+                normalized_loss = criterion(pred, y, x)
+                normalized_mse += normalized_loss.item()
+            else:
+                normalized_loss = criterion(pred, y)
+                normalized_mse += normalized_loss.item()
 
             # Calculate denormalized MSE if normalizer exists
             if normalizer is not None:

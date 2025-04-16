@@ -119,19 +119,14 @@ class MHDDataset(Dataset):
             # Add batch dimension for normalization
             sample_data = sample_data.unsqueeze(0)
 
-            # # Debug print
-            # print("Before norm - first values:")
-            # print("u:", sample_data[0, 0, 0, 0, 0].item())
-            # print("v:", sample_data[0, 1, 0, 0, 0].item())
-            # print("A:", sample_data[0, 2, 0, 0, 0].item())
+            # Make sure normalizer is on the same device as the data
+            if hasattr(self.normalizer, "to"):
+                # Get device of sample_data
+                data_device = sample_data.device
+                # Move normalizer to the same device
+                self.normalizer = self.normalizer.to(data_device)
 
             sample_data = self.normalizer.normalize(sample_data)
-
-            # # Debug print
-            # print("After norm - first values:")
-            # print("u:", sample_data[0, 0, 0, 0, 0].item())
-            # print("v:", sample_data[0, 1, 0, 0, 0].item())
-            # print("A:", sample_data[0, 2, 0, 0, 0].item())
 
             # Remove batch dimension
             sample_data = sample_data.squeeze(0)
@@ -242,12 +237,14 @@ def get_dataloaders(
         sub_x=sub_x,
     )
 
+    # Important: Use persistent workers to avoid normalizer device issues
     train_loader = DataLoader(
         train_dataset,
         batch_size=batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=(num_workers > 0),  # Keep workers alive between iterations
     )
 
     val_loader = DataLoader(
@@ -256,6 +253,7 @@ def get_dataloaders(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=(num_workers > 0),
     )
 
     test_loader = DataLoader(
@@ -264,6 +262,7 @@ def get_dataloaders(
         shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
+        persistent_workers=(num_workers > 0),
     )
 
     return train_loader, val_loader, test_loader

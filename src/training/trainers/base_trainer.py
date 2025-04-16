@@ -24,6 +24,11 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
     backward_time = 0
     data_time = 0
 
+    # Check if we're using physics-informed loss
+    use_physics_loss = (
+        hasattr(criterion, "requires_input_data") and criterion.requires_input_data
+    )
+
     pbar = tqdm(train_loader)
     for x, y in pbar:
         data_start = time.time()
@@ -36,7 +41,12 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
         forward_start = time.time()
         x = x.contiguous()  # Ensure input is contiguous for better performance
         pred = model(x)
-        loss = criterion(pred, y)
+
+        if use_physics_loss:
+            loss = criterion(pred, y, x)
+        else:
+            loss = criterion(pred, y)
+
         forward_time += time.time() - forward_start
 
         backward_start = time.time()

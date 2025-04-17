@@ -65,5 +65,6 @@ def _register_all_models():
     # Import all model modules
     from . import tfno
     from . import tfno_neuralop
+    from . import fno
 
     # Add imports for future model files here

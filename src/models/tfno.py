@@ -1,6 +1,6 @@
-# Adapted from with significant functional changes:
-# https://github.com/NVIDIA/physicsnemo/tree/main/examples/cfd/mhd_pino/tfno
-# which is based on arXiv:2302.08332 (2023).
+from .model_factory import register_model
+
+from dataclasses import dataclass
 from typing import List, Tuple, Union
 
 import torch
@@ -8,13 +8,14 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+import physicsnemo  # noqa: F401 for docs
 import physicsnemo.models.layers as layers
-from .layers import (
-    FactorizedSpectralConv3d,
-)
-from physicsnemo.models.mlp import FullyConnected
+from .layers import FactorizedSpectralConv3d
 
-from .model_factory import register_model
+
+from physicsnemo.models.meta import ModelMetaData
+from physicsnemo.models.mlp import FullyConnected
+from physicsnemo.models.module import Module
 
 
 class TFNO3DEncoder(nn.Module):
@@ -110,11 +111,16 @@ class TFNO3DEncoder(nn.Module):
         )
 
     def build_fno(self, num_fno_modes: List[int]) -> None:
-        """construct FNO block."""
+        """construct FNO block.
+        Parameters
+        ----------
+        num_fno_modes : List[int]
+            Number of Fourier modes kept in spectral convolutions
+
+        """
         # Build Neural Fourier Operators
         self.spconv_layers = nn.ModuleList()
         self.conv_layers = nn.ModuleList()
-
         for _ in range(self.num_fno_layers):
             self.spconv_layers.append(
                 FactorizedSpectralConv3d(
@@ -123,11 +129,10 @@ class TFNO3DEncoder(nn.Module):
                     num_fno_modes[0],
                     num_fno_modes[1],
                     num_fno_modes[2],
-                    n_layers=self.num_fno_layers,
-                    rank=self.rank,
-                    factorization=self.factorization,
-                    fixed_rank_modes=self.fixed_rank_modes,
-                    decomposition_kwargs=self.decomposition_kwargs,
+                    self.rank,
+                    self.factorization,
+                    self.fixed_rank_modes,
+                    self.decomposition_kwargs,
                 )
             )
             self.conv_layers.append(nn.Conv3d(self.fno_width, self.fno_width, 1))
@@ -138,25 +143,22 @@ class TFNO3DEncoder(nn.Module):
             x = torch.cat((x, coord_feat), dim=1)
 
         x = self.lift_network(x)
-
+        # (left, right, top, bottom, front, back)
         x = F.pad(
-            x, (0, self.pad[2], 0, self.pad[1], 0, self.pad[0]), mode=self.padding_type
+            x,
+            (0, self.pad[2], 0, self.pad[1], 0, self.pad[0]),
+            mode=self.padding_type,
         )
-
-        for i in range(self.num_fno_layers):
-            x1 = self.spconv_layers[i](x)
-            x2 = self.conv_layers[i](x)
-
-            x = x1 + x2
-
-            if i < len(self.conv_layers) - 1:
-                x = self.activation_fn(x)
+        # Spectral layers
+        for k, conv_w in enumerate(zip(self.conv_layers, self.spconv_layers)):
+            conv, w = conv_w
+            if k < len(self.conv_layers) - 1:
+                x = self.activation_fn(conv(x) + w(x))
+            else:
+                x = conv(x) + w(x)
 
         x = x[..., : self.ipad[0], : self.ipad[1], : self.ipad[2]]
         return x
-
-    # Uncomment this if you prefer to implement coord_features/grid-embedding
-    # inside your model instead of dataset
 
     def meshgrid(self, shape: List[int], device: torch.device) -> Tensor:
         """Creates 3D meshgrid feature
@@ -350,6 +352,7 @@ class TFNO(nn.Module):
             padding=self.padding,
             padding_type=self.padding_type,
             activation_fn=self.activation_fn,
+            coord_features=self.coord_features,
             rank=self.rank,
             factorization=self.factorization,
             fixed_rank_modes=self.fixed_rank_modes,
@@ -361,26 +364,21 @@ class TFNO(nn.Module):
         if self.dimension == 3:
             return TFNO3DEncoder
         else:
-            raise NotImplementedError
+            raise NotImplementedError("Invalid dimensionality.")
 
     def forward(self, x: Tensor) -> Tensor:
         # Fourier encoder
-        # print(f"\nx.shape before tfno: {x.shape}")
         y_latent = self.spec_encoder(x)
-        # print(f"y_latent shape after tfno: {y_latent.shape}")
 
         # Reshape to pointwise inputs if not a conv FC model
         y_shape = y_latent.shape
         y_latent, y_shape = self.spec_encoder.grid_to_points(y_latent)
-        # print(f"y_latent shape after grid to points: {y_latent.shape}")
 
         # Decoder
         y = self.decoder_net(y_latent)
-        # print(f"y shape after decoder net: {y.shape}")
 
         # Convert back into grid
         y = self.spec_encoder.points_to_grid(y, y_shape)
-        # print(f"y shape after points to grid: {y.shape}\n")
 
         return y
 

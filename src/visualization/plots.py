@@ -5,6 +5,7 @@ import copy
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import ScalarFormatter
 
 
 def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samples=2):
@@ -127,17 +128,21 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
                     vmin = np.min(y_np[i, c, time_dim])
                     vmax = np.max(y_np[i, c, time_dim])
 
-                    # Ensure symmetric colorbar limits for diverging colormap
-                    abs_max = max(abs(vmin), abs(vmax))
-                    vmin, vmax = -abs_max, abs_max
-
                     # True final state
                     im = axes[c, 1].imshow(
                         y_np[i, c, time_dim], cmap=cmap, vmin=vmin, vmax=vmax
                     )
                     axes[c, 1].set_title(f"True Final: {channel_names[c]}")
                     axes[c, 1].axis("off")
-                    plt.colorbar(im, ax=axes[c, 1], fraction=0.046, pad=0.04)
+                    cbar = plt.colorbar(im, ax=axes[c, 1], fraction=0.046, pad=0.04)
+
+                    # Use scientific notation for the third channel (A) - True Final
+                    if c == 2:  # For channel A
+                        formatter = ScalarFormatter(useMathText=True)
+                        formatter.set_scientific(True)
+                        formatter.set_powerlimits((-2, 2))
+                        cbar.formatter = formatter
+                        cbar.update_ticks()
 
                     # Third column: predicted final state (using same colorbar range as true results)
                     pred_time_dim = min(pred_np.shape[2] - 1, time_dim)
@@ -146,16 +151,37 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
                     )
                     axes[c, 2].set_title(f"Pred Final: {channel_names[c]}")
                     axes[c, 2].axis("off")
-                    plt.colorbar(im, ax=axes[c, 2], fraction=0.046, pad=0.04)
 
-                    # Fourth column: absolute error
-                    error = np.abs(y_np[i, c, time_dim] - pred_np[i, c, pred_time_dim])
+                    # Use scientific notation for the third channel (A)
+                    cbar = plt.colorbar(im, ax=axes[c, 2], fraction=0.046, pad=0.04)
+                    if c == 2:  # For channel A
+                        formatter = ScalarFormatter(useMathText=True)
+                        formatter.set_scientific(True)
+                        formatter.set_powerlimits((-2, 2))
+                        cbar.formatter = formatter
+                        cbar.update_ticks()
+
+                    # Fourth column: prediction error (pred - true)
+                    error = pred_np[i, c, pred_time_dim] - y_np[i, c, time_dim]
+
+                    # Use the actual min and max values for error colormap
+                    err_vmin = np.min(error)
+                    err_vmax = np.max(error)
+
                     im = axes[c, 3].imshow(
-                        error, cmap="viridis"
-                    )  # Use viridis for error (non-diverging data)
-                    axes[c, 3].set_title(f"Abs Error: {channel_names[c]}")
+                        error, cmap="viridis", vmin=err_vmin, vmax=err_vmax
+                    )
+                    axes[c, 3].set_title(f"Error (pred - true): {channel_names[c]}")
                     axes[c, 3].axis("off")
-                    plt.colorbar(im, ax=axes[c, 3], fraction=0.046, pad=0.04)
+
+                    cbar = plt.colorbar(im, ax=axes[c, 3], fraction=0.046, pad=0.04)
+                    # Apply scientific notation for the third channel (A)
+                    if c == 2:  # For channel A
+                        formatter = ScalarFormatter(useMathText=True)
+                        formatter.set_scientific(True)
+                        formatter.set_powerlimits((-2, 2))
+                        cbar.formatter = formatter
+                        cbar.update_ticks()
 
                 plt.tight_layout()
                 plt.savefig(os.path.join(plots_dir, f"sample_{i}.png"))

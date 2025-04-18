@@ -6,15 +6,6 @@ import torch.nn.functional as F
 import numpy as np
 from .loss_factory import register_loss
 from .lp_loss import LpLoss
-from ..models.layers.spectral_layers import (
-    fourier_derivatives,
-    fourier_derivatives_lap,
-    fourier_derivatives_ptot,
-    fourier_derivatives_vec_pot,
-)
-
-from ..normalizations import PhysicsNormalization
-import copy
 
 
 class MHDVecPotLoss(nn.Module):

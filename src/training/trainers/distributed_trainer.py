@@ -35,10 +35,6 @@ def train_epoch_distributed(
     use_physics_loss = (
         hasattr(criterion, "requires_input_data") and criterion.requires_input_data
     )
-    has_normalizer = (
-        hasattr(train_loader.dataset, "normalizer")
-        and train_loader.dataset.normalizer is not None
-    )
 
     models = [model]  # First GPU already has the model
     for i in range(1, num_gpus):
@@ -76,23 +72,9 @@ def train_epoch_distributed(
             forward_time += (time.time() - forward_start) / num_gpus
 
             # Handle physics-informed loss with denormalization
-            if use_physics_loss and has_normalizer:
-                normalizer = train_loader.dataset.normalizer
-                # Move normalizer to the correct device
-                if hasattr(normalizer, "to"):
-                    normalizer = normalizer.to(f"cuda:{i}")
-
-                # Denormalize predictions and targets for physics calculations
-                outputs_denorm = normalizer.denormalize(outputs)
-                y_chunk_denorm = normalizer.denormalize(y_chunk)
-
-                # Pass denormalized data to physics-informed loss
-                loss = criterion(outputs_denorm, y_chunk_denorm, x_chunk)
-            elif use_physics_loss:
-                # Physics-informed loss without normalization
-                loss = criterion(outputs, y_chunk, x_chunk)
+            if use_physics_loss:
+                loss = criterion(train_loader, outputs, y_chunk, x_chunk)
             else:
-                # Standard loss calculation
                 loss = criterion(outputs, y_chunk)
 
             backward_start = time.time()

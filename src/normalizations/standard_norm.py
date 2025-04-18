@@ -43,8 +43,8 @@ class StandardNormalization(nn.Module):
         if self.mean is None or self.std is None:
             return x
 
-        mean = self.mean.view(1, -1, 1, 1, 1)
-        std = self.std.view(1, -1, 1, 1, 1)
+        mean = self.mean.to(x.device).view(1, -1, 1, 1, 1)
+        std = self.std.to(x.device).view(1, -1, 1, 1, 1)
 
         return (x - mean) / (std + self.eps)
 
@@ -53,10 +53,18 @@ class StandardNormalization(nn.Module):
         if self.mean is None or self.std is None:
             return x
 
-        mean = self.mean.view(1, -1, 1, 1, 1)
-        std = self.std.view(1, -1, 1, 1, 1)
+        mean = self.mean.to(x.device).view(1, -1, 1, 1, 1)
+        std = self.std.to(x.device).view(1, -1, 1, 1, 1)
 
         return x * (std + self.eps) + mean
+
+    def to(self, device):
+        """Override to method to properly handle device transfers"""
+        if self.mean is not None:
+            self.mean = self.mean.to(device)
+        if self.std is not None:
+            self.std = self.std.to(device)
+        return self
 
 
 @register_normalization("standard")

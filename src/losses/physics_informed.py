@@ -14,6 +14,7 @@ from ..models.layers.spectral_layers import (
 )
 
 from ..normalizations import PhysicsNormalization
+import copy
 
 
 class MHDVecPotLoss(nn.Module):
@@ -76,7 +77,7 @@ class MHDVecPotLoss(nn.Module):
         self.use_weighted_mean = use_weighted_mean
         print(f"DA_weight is {self.DA_weight}")
 
-    def forward(self, pred, target, inputs):
+    def forward(self, dataloader, pred, target, inputs):
         """
         Calculate the total loss combining data fit and physics constraints.
 
@@ -88,26 +89,48 @@ class MHDVecPotLoss(nn.Module):
         Returns:
             Total weighted loss
         """
-        normalizer = PhysicsNormalization()
-        has_grid_embeddings = inputs.shape[1] > pred.shape[1]
-        data_channels = pred.shape[1]
+        has_dataset_normalizer = (
+            hasattr(dataloader.dataset, "normalizer")
+            and dataloader.dataset.normalizer is not None
+        )
+
+        if has_dataset_normalizer:
+            normalizer = dataloader.dataset.normalizer
+        else:
+            normalizer = None
+
+        has_grid_embeddings = inputs.shape[1] > target.shape[1]
+        data_channels = target.shape[1]  # Number of data channels (3 for u_x, u_y, A)
 
         if has_grid_embeddings:
             data_channel_indices = list(
                 range(inputs.shape[1] - data_channels, inputs.shape[1])
             )
-            inputs_data_only = inputs[:, data_channel_indices]
-            inputs_denorm = normalizer.denormalize(inputs_data_only)
         else:
             data_channel_indices = list(range(inputs.shape[1]))
-            inputs_denorm = normalizer.denormalize(inputs)
 
-        target_denorm = normalizer.denormalize(target)
-        pred_denorm = normalizer.denormalize(pred)
+        # Denormalize the data if a normalizer is available
+        if normalizer is not None and hasattr(normalizer, "denormalize"):
+            # Handle separate denormalization for input and output when dimensions differ
+            if has_grid_embeddings:
+                # For input tensor, we only want to denormalize the data channels, not the grid
+                inputs_data_only = inputs[:, data_channel_indices]
+                inputs_denorm = normalizer.denormalize(inputs_data_only)
+            else:
+                # If no grid embeddings, denormalize the whole input
+                inputs_denorm = normalizer.denormalize(inputs)
+
+            target_denorm = normalizer.denormalize(target)
+            pred_denorm = normalizer.denormalize(pred)
+        else:
+            # If no normalizer is available, use the data as is
+            inputs_denorm = inputs
+            target_denorm = target
+            pred_denorm = pred
 
         return self.compute_loss(pred_denorm, target_denorm, inputs_denorm)
 
-    def compute_loss(self, pred, true, inputs):
+    def compute_loss(self, pred, target, inputs):
         """Compute weighted loss with all components"""
         u = pred[:, 0]
         v = pred[:, 1]
@@ -115,7 +138,7 @@ class MHDVecPotLoss(nn.Module):
 
         # Data
         if self.use_data_loss:
-            loss_data = self.data_loss(pred, true)
+            loss_data = self.data_loss(pred, target)
         else:
             loss_data = 0
 
@@ -157,20 +180,20 @@ class MHDVecPotLoss(nn.Module):
         ) / weight_sum
         return loss
 
-    def data_loss(self, pred, true, return_all_losses=False):
+    def data_loss(self, pred, target, return_all_losses=False):
         """Compute data loss"""
         lploss = LpLoss(size_average=True)
         u_pred = pred[:, 0]
         v_pred = pred[:, 1]
         A_pred = pred[:, 2]
 
-        u_true = true[:, 0]
-        v_true = true[:, 1]
-        A_true = true[:, 2]
+        u_target = target[:, 0]
+        v_target = target[:, 1]
+        A_target = target[:, 2]
 
-        loss_u = lploss(u_pred, u_true)
-        loss_v = lploss(v_pred, v_true)
-        loss_A = lploss(A_pred, A_true)
+        loss_u = lploss(u_pred, u_target)
+        loss_v = lploss(v_pred, v_target)
+        loss_A = lploss(A_pred, A_target)
 
         if self.use_weighted_mean:
             weight_sum = self.u_weight + self.v_weight + self.A_weight
@@ -186,22 +209,22 @@ class MHDVecPotLoss(nn.Module):
         else:
             return loss_data
 
-    def ic_loss(self, pred, input, return_all_losses=False):
+    def ic_loss(self, pred, inputs, return_all_losses=False):
         """Compute initial condition loss"""
         lploss = LpLoss(size_average=True)
         ic_pred = pred[:, :, 0]
-        ic_true = input[:, :, 0]
+        ic_target = inputs[:, :, 0]
         u_ic_pred = ic_pred[:, 0]
         v_ic_pred = ic_pred[:, 1]
         A_ic_pred = ic_pred[:, 2]
 
-        u_ic_true = ic_true[:, 0]
-        v_ic_true = ic_true[:, 1]
-        A_ic_true = ic_true[:, 2]
+        u_ic_target = ic_target[:, 0]
+        v_ic_target = ic_target[:, 1]
+        A_ic_target = ic_target[:, 2]
 
-        loss_u_ic = lploss(u_ic_pred, u_ic_true)
-        loss_v_ic = lploss(v_ic_pred, v_ic_true)
-        loss_A_ic = lploss(A_ic_pred, A_ic_true)
+        loss_u_ic = lploss(u_ic_pred, u_ic_target)
+        loss_v_ic = lploss(v_ic_pred, v_ic_target)
+        loss_A_ic = lploss(A_ic_pred, A_ic_target)
 
         if self.use_weighted_mean:
             weight_sum = self.u_weight + self.v_weight + self.A_weight

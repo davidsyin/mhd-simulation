@@ -43,7 +43,7 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
         pred = model(x)
 
         if use_physics_loss:
-            loss = criterion(pred, y, x)
+            loss = criterion(train_loader, pred, y, x)
         else:
             loss = criterion(pred, y)
 
@@ -51,6 +51,7 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
 
         backward_start = time.time()
         loss.backward()
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         backward_time += time.time() - backward_start
 

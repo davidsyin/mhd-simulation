@@ -111,7 +111,7 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
 
             # Calculate normalized loss (used for training)
             if use_physics_loss:
-                normalized_loss = criterion(pred, y, x)
+                normalized_loss = criterion(val_loader, pred, y, x)
                 normalized_mse += normalized_loss.item()
             else:
                 normalized_loss = criterion(pred, y)

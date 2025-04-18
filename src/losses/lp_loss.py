@@ -1,39 +1,49 @@
 """Loss functions for training and evaluation."""
 
+from typing import Union, Optional, Tuple
 import torch
 import torch.nn as nn
 from torch import Tensor
-from typing import List
 
 
-class LpLoss(object):
+class LpLoss:
     """
-    Loss function with rel/abs Lp loss
+    Loss function with relative/absolute Lp loss.
 
     Parameters
     ----------
     d : int
-        Dimension
+        Dimension of the domain
     p : int
-        Order of norm
+        Order of the norm
     size_average : bool
         Whether to average over batch
     reduction : bool
         Whether to average/sum over error
     """
 
-    def __init__(self, d=2, p=2, size_average=True, reduction=True):
-        super(LpLoss, self).__init__()
-
-        # Dimension and Lp-norm type are postive
-        assert d > 0 and p > 0
+    def __init__(
+        self, d: int = 2, p: int = 2, size_average: bool = True, reduction: bool = True
+    ):
+        # Dimension and Lp-norm type are positive
+        assert d > 0 and p > 0, "Dimension and norm order must be positive"
 
         self.d = d
         self.p = p
         self.reduction = reduction
         self.size_average = size_average
 
-    def abs(self, x, y):
+    def abs(self, x: Tensor, y: Tensor) -> Union[Tensor, float]:
+        """
+        Compute absolute Lp loss.
+
+        Args:
+            x: Predicted tensor
+            y: Target tensor
+
+        Returns:
+            Absolute Lp loss
+        """
         num_examples = x.size()[0]
 
         # Assume uniform mesh
@@ -51,7 +61,17 @@ class LpLoss(object):
 
         return all_norms
 
-    def rel(self, x, y):
+    def rel(self, x: Tensor, y: Tensor) -> Union[Tensor, float]:
+        """
+        Compute relative Lp loss.
+
+        Args:
+            x: Predicted tensor
+            y: Target tensor
+
+        Returns:
+            Relative Lp loss
+        """
         num_examples = x.size()[0]
 
         diff_norms = torch.norm(
@@ -67,5 +87,15 @@ class LpLoss(object):
 
         return diff_norms / y_norms
 
-    def __call__(self, x, y):
+    def __call__(self, x: Tensor, y: Tensor) -> Union[Tensor, float]:
+        """
+        Compute relative Lp loss by default.
+
+        Args:
+            x: Predicted tensor
+            y: Target tensor
+
+        Returns:
+            Lp loss (relative by default)
+        """
         return self.rel(x, y)

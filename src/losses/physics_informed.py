@@ -1,98 +1,163 @@
 """Physics-informed loss functions that incorporate domain knowledge constraints."""
 
+from typing import Dict, Any, Optional, Tuple, Union, List
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+from torch.utils.data import DataLoader
+from torch import Tensor
+
 from .loss_factory import register_loss
 from .lp_loss import LpLoss
+from ..physics.constraints import compute_constraints, compute_constraint_loss
+from ..physics.pde_solvers import compute_mhd_pde, compute_pde_loss
 
 
 class MHDVecPotLoss(nn.Module):
     """
     Physics-informed loss function for MHD with vector potential formulation.
+
+    This loss combines data fitting with physical constraints from the MHD equations:
+    - Data fitting against ground truth predictions
+    - Initial condition matching
+    - PDE residual minimization
+    - Divergence-free constraints for velocity and magnetic fields
+
+    Attributes:
+        requires_input_data: Flag indicating this loss requires input data
     """
 
     # Class flag to indicate this loss requires input data
-    requires_input_data = True
+    requires_input_data: bool = True
 
     def __init__(
         self,
-        nu=1e-4,
-        eta=1e-4,
-        rho0=1.0,
-        data_weight=1.0,
-        ic_weight=1.0,
-        pde_weight=1.0,
-        constraint_weight=1.0,
-        use_data_loss=True,
-        use_ic_loss=True,
-        use_pde_loss=True,
-        use_constraint_loss=True,
-        u_weight=1.0,
-        v_weight=1.0,
-        A_weight=1.0,
-        Du_weight=1.0,
-        Dv_weight=1.0,
-        DA_weight=1.0,
-        div_B_weight=1.0,
-        div_vel_weight=1.0,
-        Lx=1.0,
-        Ly=1.0,
-        tend=1.0,
-        use_weighted_mean=False,
+        nu: float = 1e-4,
+        eta: float = 1e-4,
+        rho0: float = 1.0,
+        data_weight: float = 1.0,
+        ic_weight: float = 1.0,
+        pde_weight: float = 1.0,
+        constraint_weight: float = 1.0,
+        use_data_loss: bool = True,
+        use_ic_loss: bool = True,
+        use_pde_loss: bool = True,
+        use_constraint_loss: bool = True,
+        u_weight: float = 1.0,
+        v_weight: float = 1.0,
+        A_weight: float = 1.0,
+        Du_weight: float = 1.0,
+        Dv_weight: float = 1.0,
+        DA_weight: float = 1.0,
+        div_B_weight: float = 1.0,
+        div_vel_weight: float = 1.0,
+        Lx: float = 1.0,
+        Ly: float = 1.0,
+        tend: float = 1.0,
+        use_weighted_mean: bool = False,
+        **kwargs,  # Accept and ignore additional keyword arguments
     ):
+        """
+        Initialize the MHD vector potential loss function.
+
+        Args:
+            nu: Kinematic viscosity
+            eta: Magnetic diffusivity
+            rho0: Fluid density
+            data_weight: Weight for data fitting loss
+            ic_weight: Weight for initial condition loss
+            pde_weight: Weight for PDE residual loss
+            constraint_weight: Weight for constraint loss
+            use_data_loss: Whether to include data fitting loss
+            use_ic_loss: Whether to include initial condition loss
+            use_pde_loss: Whether to include PDE residual loss
+            use_constraint_loss: Whether to include constraint loss
+            u_weight: Weight for x-velocity component
+            v_weight: Weight for y-velocity component
+            A_weight: Weight for vector potential
+            Du_weight: Weight for u-momentum equation residual
+            Dv_weight: Weight for v-momentum equation residual
+            DA_weight: Weight for vector potential equation residual
+            div_B_weight: Weight for magnetic field divergence constraint
+            div_vel_weight: Weight for velocity divergence constraint
+            Lx: Domain length in x direction
+            Ly: Domain length in y direction
+            tend: Final simulation time
+            use_weighted_mean: Whether to normalize by sum of weights
+            **kwargs: Additional keyword arguments (ignored)
+        """
         super().__init__()
         self.nu = nu
         self.eta = eta
         self.rho0 = rho0
+
+        # Main loss component weights
         self.data_weight = data_weight
         self.ic_weight = ic_weight
         self.pde_weight = pde_weight
         self.constraint_weight = constraint_weight
+
+        # Loss component flags
         self.use_data_loss = use_data_loss
         self.use_ic_loss = use_ic_loss
         self.use_pde_loss = use_pde_loss
         self.use_constraint_loss = use_constraint_loss
+
+        # Field component weights
         self.u_weight = u_weight
         self.v_weight = v_weight
         self.A_weight = A_weight
+
+        # PDE residual weights
         self.Du_weight = Du_weight
         self.Dv_weight = Dv_weight
         self.DA_weight = DA_weight
+
+        # Constraint weights
         self.div_B_weight = div_B_weight
         self.div_vel_weight = div_vel_weight
+
+        # Domain parameters
         self.Lx = Lx
         self.Ly = Ly
         self.tend = tend
-        self.use_weighted_mean = use_weighted_mean
-        print(f"DA_weight is {self.DA_weight}")
 
-    def forward(self, dataloader, pred, target, inputs):
+        # Loss calculation method
+        self.use_weighted_mean = use_weighted_mean
+
+    def forward(
+        self, dataloader: DataLoader, pred: Tensor, target: Tensor, inputs: Tensor
+    ) -> Tensor:
         """
         Calculate the total loss combining data fit and physics constraints.
 
         Args:
-            pred: Model predictions
-            target: Ground truth targets
+            dataloader: DataLoader containing the dataset (for normalizer access)
+            pred: Model predictions with shape [batch, channels, time, x, y]
+            target: Ground truth targets with shape [batch, channels, time, x, y]
             inputs: Input data containing initial conditions
 
         Returns:
             Total weighted loss
         """
+        # Check if dataset has a normalizer
         has_dataset_normalizer = (
             hasattr(dataloader.dataset, "normalizer")
             and dataloader.dataset.normalizer is not None
         )
 
+        # Get normalizer if available
         if has_dataset_normalizer:
             normalizer = dataloader.dataset.normalizer
         else:
             normalizer = None
 
+        # Check if inputs include grid embeddings
         has_grid_embeddings = inputs.shape[1] > target.shape[1]
         data_channels = target.shape[1]  # Number of data channels (3 for u_x, u_y, A)
 
+        # Identify data channels in inputs
         if has_grid_embeddings:
             data_channel_indices = list(
                 range(inputs.shape[1] - data_channels, inputs.shape[1])
@@ -119,477 +184,197 @@ class MHDVecPotLoss(nn.Module):
             target_denorm = target
             pred_denorm = pred
 
+        # Compute loss with denormalized data
         return self.compute_loss(pred_denorm, target_denorm, inputs_denorm)
 
-    def compute_loss(self, pred, target, inputs):
-        """Compute weighted loss with all components"""
-        u = pred[:, 0]
-        v = pred[:, 1]
-        A = pred[:, 2]
+    def compute_loss(self, pred: Tensor, target: Tensor, inputs: Tensor) -> Tensor:
+        """
+        Compute weighted loss with all components.
 
-        # Data
+        Args:
+            pred: Predicted fields [batch, channels, time, x, y]
+            target: Target fields [batch, channels, time, x, y]
+            inputs: Input fields [batch, channels, time, x, y]
+
+        Returns:
+            Total weighted loss
+        """
+        # Extract field components
+        u, v, A = pred[:, 0], pred[:, 1], pred[:, 2]
+
+        # Track individual loss components
+        loss_components = {}
+
+        # Data loss
         if self.use_data_loss:
             loss_data = self.data_loss(pred, target)
+            loss_components["data"] = loss_data.item()
         else:
-            loss_data = 0
+            loss_data = torch.tensor(0.0, device=pred.device)
+            loss_components["data"] = 0.0
 
-        # IC
+        # Initial condition loss
         if self.use_ic_loss:
             loss_ic = self.ic_loss(pred, inputs)
+            loss_components["ic"] = loss_ic.item()
         else:
-            loss_ic = 0
+            loss_ic = torch.tensor(0.0, device=pred.device)
+            loss_components["ic"] = 0.0
 
-        # PDE
+        # PDE loss
         if self.use_pde_loss:
-            Du, Dv, DA = self.mhd_pde(u, v, A)
-            loss_pde = self.mhd_pde_loss(Du, Dv, DA)
-        else:
-            loss_pde = 0
-
-        # Constraints
-        if self.use_constraint_loss:
-            div_vel, div_B = self.mhd_constraint(u, v, A)
-            loss_constraint = self.mhd_constraint_loss(div_vel, div_B)
-        else:
-            loss_constraint = 0
-
-        if self.use_weighted_mean:
-            weight_sum = (
-                self.data_weight
-                + self.ic_weight
-                + self.pde_weight
-                + self.constraint_weight
+            Du, Dv, DA = compute_mhd_pde(
+                u, v, A, self.Lx, self.Ly, self.tend, self.nu, self.eta, self.rho0
             )
+            loss_pde, pde_components = compute_pde_loss(
+                Du,
+                Dv,
+                DA,
+                self.Du_weight,
+                self.Dv_weight,
+                self.DA_weight,
+                self.use_weighted_mean,
+            )
+            loss_components.update({f"pde_{k}": v for k, v in pde_components.items()})
+        else:
+            loss_pde = torch.tensor(0.0, device=pred.device)
+
+        # Constraint loss
+        if self.use_constraint_loss:
+            div_vel, div_B = compute_constraints(u, v, A, self.Lx, self.Ly, self.tend)
+            loss_constraint, constraint_components = compute_constraint_loss(
+                div_vel,
+                div_B,
+                self.div_vel_weight,
+                self.div_B_weight,
+                self.use_weighted_mean,
+            )
+            loss_components.update(
+                {f"constraint_{k}": v for k, v in constraint_components.items()}
+            )
+        else:
+            loss_constraint = torch.tensor(0.0, device=pred.device)
+
+        # Calculate weight normalization factor
+        if self.use_weighted_mean:
+            active_weights = (
+                (self.data_weight if self.use_data_loss else 0)
+                + (self.ic_weight if self.use_ic_loss else 0)
+                + (self.pde_weight if self.use_pde_loss else 0)
+                + (self.constraint_weight if self.use_constraint_loss else 0)
+            )
+            weight_sum = max(active_weights, 1.0)  # Avoid division by zero
         else:
             weight_sum = 1.0
 
+        # Compute weighted total loss
         loss = (
             self.data_weight * loss_data
             + self.ic_weight * loss_ic
             + self.pde_weight * loss_pde
             + self.constraint_weight * loss_constraint
         ) / weight_sum
+
+        # Store total loss
+        loss_components["total"] = loss.item()
+
         return loss
 
-    def data_loss(self, pred, target, return_all_losses=False):
-        """Compute data loss"""
+    def data_loss(self, pred: Tensor, target: Tensor) -> Tensor:
+        """
+        Compute data fitting loss using Lp loss.
+
+        Args:
+            pred: Predicted fields [batch, channels, time, x, y]
+            target: Target fields [batch, channels, time, x, y]
+
+        Returns:
+            Data fitting loss
+        """
         lploss = LpLoss(size_average=True)
-        u_pred = pred[:, 0]
-        v_pred = pred[:, 1]
-        A_pred = pred[:, 2]
 
-        u_target = target[:, 0]
-        v_target = target[:, 1]
-        A_target = target[:, 2]
+        # Extract field components
+        u_pred, v_pred, A_pred = pred[:, 0], pred[:, 1], pred[:, 2]
+        u_target, v_target, A_target = target[:, 0], target[:, 1], target[:, 2]
 
+        # Compute component losses
         loss_u = lploss(u_pred, u_target)
         loss_v = lploss(v_pred, v_target)
         loss_A = lploss(A_pred, A_target)
 
+        # Apply component weights
         if self.use_weighted_mean:
             weight_sum = self.u_weight + self.v_weight + self.A_weight
         else:
             weight_sum = 1.0
 
+        # Compute weighted loss
         loss_data = (
             self.u_weight * loss_u + self.v_weight * loss_v + self.A_weight * loss_A
         ) / weight_sum
 
-        if return_all_losses:
-            return loss_data, loss_u, loss_v, loss_A
-        else:
-            return loss_data
+        return loss_data
 
-    def ic_loss(self, pred, inputs, return_all_losses=False):
-        """Compute initial condition loss"""
+    def ic_loss(self, pred: Tensor, inputs: Tensor) -> Tensor:
+        """
+        Compute initial condition loss using Lp loss.
+
+        Args:
+            pred: Predicted fields [batch, channels, time, x, y]
+            inputs: Input fields with initial conditions [batch, channels, time, x, y]
+
+        Returns:
+            Initial condition loss
+        """
         lploss = LpLoss(size_average=True)
+
+        # Extract initial conditions (t=0)
         ic_pred = pred[:, :, 0]
         ic_target = inputs[:, :, 0]
-        u_ic_pred = ic_pred[:, 0]
-        v_ic_pred = ic_pred[:, 1]
-        A_ic_pred = ic_pred[:, 2]
 
-        u_ic_target = ic_target[:, 0]
-        v_ic_target = ic_target[:, 1]
-        A_ic_target = ic_target[:, 2]
+        # Extract field components at t=0
+        u_ic_pred, v_ic_pred, A_ic_pred = ic_pred[:, 0], ic_pred[:, 1], ic_pred[:, 2]
+        u_ic_target, v_ic_target, A_ic_target = (
+            ic_target[:, 0],
+            ic_target[:, 1],
+            ic_target[:, 2],
+        )
 
+        # Compute component losses
         loss_u_ic = lploss(u_ic_pred, u_ic_target)
         loss_v_ic = lploss(v_ic_pred, v_ic_target)
         loss_A_ic = lploss(A_ic_pred, A_ic_target)
 
+        # Apply component weights
         if self.use_weighted_mean:
             weight_sum = self.u_weight + self.v_weight + self.A_weight
         else:
             weight_sum = 1.0
 
+        # Compute weighted loss
         loss_ic = (
             self.u_weight * loss_u_ic
             + self.v_weight * loss_v_ic
             + self.A_weight * loss_A_ic
         ) / weight_sum
 
-        if return_all_losses:
-            return loss_ic, loss_u_ic, loss_v_ic, loss_A_ic
-        else:
-            return loss_ic
-
-    def mhd_pde_loss(self, Du, Dv, DA, return_all_losses=None):
-        """Compute PDE loss"""
-        Du_val = torch.zeros_like(Du)
-        Dv_val = torch.zeros_like(Dv)
-        DA_val = torch.zeros_like(DA)
-
-        loss_Du = F.mse_loss(Du, Du_val)
-        loss_Dv = F.mse_loss(Dv, Dv_val)
-        loss_DA = F.mse_loss(DA, DA_val)
-
-        if self.use_weighted_mean:
-            weight_sum = self.Du_weight + self.Dv_weight + self.DA_weight
-        else:
-            weight_sum = 1.0
-
-        loss_pde = (
-            self.Du_weight * loss_Du
-            + self.Dv_weight * loss_Dv
-            + self.DA_weight * loss_DA
-        ) / weight_sum
-
-        if return_all_losses:
-            return loss_pde, loss_Du, loss_Dv, loss_DA
-        else:
-            return loss_pde
-
-    def mhd_constraint(self, u, v, A):
-        """Compute constraints"""
-        batchsize = u.size(0)
-        nt = u.size(1)
-        nx = u.size(2)
-        ny = u.size(3)
-        device = u.device
-        dt = self.tend / (nt - 1)
-        dx = self.Lx / nx
-        dy = self.Ly / ny
-
-        # Fix for wavenumbers: Make sure to handle odd-sized grids
-        k_max = nx // 2
-        if nx % 2 == 0:  # even size
-            # For even sizes, we use -nx/2 to nx/2-1
-            k_x_arr = torch.cat(
-                [
-                    torch.arange(start=0, end=k_max, step=1, device=device),
-                    torch.arange(start=-k_max, end=0, step=1, device=device),
-                ],
-                0,
-            )
-        else:  # odd size
-            # For odd sizes, we use -(nx-1)/2 to (nx-1)/2
-            k_x_arr = torch.cat(
-                [
-                    torch.arange(start=0, end=k_max + 1, step=1, device=device),
-                    torch.arange(start=-k_max, end=0, step=1, device=device),
-                ],
-                0,
-            )
-
-        if ny % 2 == 0:  # even size
-            k_y_arr = torch.cat(
-                [
-                    torch.arange(start=0, end=ny // 2, step=1, device=device),
-                    torch.arange(start=-ny // 2, end=0, step=1, device=device),
-                ],
-                0,
-            )
-        else:  # odd size
-            k_y_arr = torch.cat(
-                [
-                    torch.arange(start=0, end=ny // 2 + 1, step=1, device=device),
-                    torch.arange(start=-ny // 2, end=0, step=1, device=device),
-                ],
-                0,
-            )
-
-        # Reshape to match grid dimensions
-        k_x = (2 * np.pi / self.Lx) * k_x_arr.reshape(nx, 1).repeat(1, ny).reshape(
-            1, 1, nx, ny
-        )
-        k_y = (2 * np.pi / self.Ly) * k_y_arr.reshape(1, ny).repeat(nx, 1).reshape(
-            1, 1, nx, ny
-        )
-
-        u_h = torch.fft.fftn(u, dim=[2, 3])
-        v_h = torch.fft.fftn(v, dim=[2, 3])
-        A_h = torch.fft.fftn(A, dim=[2, 3])
-
-        ux_h = self.Du_i(u_h, k_x)
-        vy_h = self.Du_i(v_h, k_y)
-
-        Ax_h = self.Du_i(A_h, k_x)
-        Ay_h = self.Du_i(A_h, k_y)
-
-        Bx_h = Ay_h
-        By_h = -Ax_h
-
-        Bx_x_h = self.Du_i(Bx_h, k_x)
-        By_y_h = self.Du_i(By_h, k_y)
-
-        ux = torch.fft.irfftn(ux_h, dim=[2, 3], s=(nx, ny))
-        vy = torch.fft.irfftn(vy_h, dim=[2, 3], s=(nx, ny))
-        Bx_x = torch.fft.irfftn(Bx_x_h, dim=[2, 3], s=(nx, ny))
-        By_y = torch.fft.irfftn(By_y_h, dim=[2, 3], s=(nx, ny))
-
-        div_vel = ux + vy
-        div_B = Bx_x + By_y
-
-        return div_vel, div_B
-
-    def mhd_constraint_loss(self, div_vel, div_B, return_all_losses=False):
-        """Compute constraint loss"""
-        div_vel_val = torch.zeros_like(div_vel)
-        div_B_val = torch.zeros_like(div_B)
-
-        loss_div_vel = F.mse_loss(div_vel, div_vel_val)
-        loss_div_B = F.mse_loss(div_B, div_B_val)
-
-        if self.use_weighted_mean:
-            weight_sum = self.div_vel_weight + self.div_B_weight
-        else:
-            weight_sum = 1.0
-
-        loss_constraint = (
-            self.div_vel_weight * loss_div_vel + self.div_B_weight * loss_div_B
-        ) / weight_sum
-
-        if return_all_losses:
-            return loss_constraint, loss_div_vel, loss_div_B
-        else:
-            return loss_constraint
-
-    def Du_t(self, u, dt):
-        """Compute time derivative"""
-        u_t = (u[:, 2:] - u[:, :-2]) / (2 * dt)
-        return u_t
-
-    def mhd_pde(self, u, v, A, p=None):
-        """Compute PDEs for MHD using vector potential"""
-        batchsize = u.size(0)
-        nt = u.size(1)
-        nx = u.size(2)
-        ny = u.size(3)
-        device = u.device
-        dt = self.tend / (nt - 1)
-        dx = self.Lx / nx
-
-        # Fix for wavenumbers: Make sure to handle odd-sized grids
-        k_max = nx // 2
-        if nx % 2 == 0:  # even size
-            # For even sizes, we use -nx/2 to nx/2-1
-            k_x_arr = torch.cat(
-                [
-                    torch.arange(start=0, end=k_max, step=1, device=device),
-                    torch.arange(start=-k_max, end=0, step=1, device=device),
-                ],
-                0,
-            )
-        else:  # odd size
-            # For odd sizes, we use -(nx-1)/2 to (nx-1)/2
-            k_x_arr = torch.cat(
-                [
-                    torch.arange(start=0, end=k_max + 1, step=1, device=device),
-                    torch.arange(start=-k_max, end=0, step=1, device=device),
-                ],
-                0,
-            )
-
-        if ny % 2 == 0:  # even size
-            k_y_arr = torch.cat(
-                [
-                    torch.arange(start=0, end=ny // 2, step=1, device=device),
-                    torch.arange(start=-ny // 2, end=0, step=1, device=device),
-                ],
-                0,
-            )
-        else:  # odd size
-            k_y_arr = torch.cat(
-                [
-                    torch.arange(start=0, end=ny // 2 + 1, step=1, device=device),
-                    torch.arange(start=-ny // 2, end=0, step=1, device=device),
-                ],
-                0,
-            )
-
-        # Reshape to match grid dimensions
-        k_x = (2 * np.pi / self.Lx) * k_x_arr.reshape(nx, 1).repeat(1, ny).reshape(
-            1, 1, nx, ny
-        )
-        k_y = (2 * np.pi / self.Ly) * k_y_arr.reshape(1, ny).repeat(nx, 1).reshape(
-            1, 1, nx, ny
-        )
-
-        lap = -(k_x**2 + k_y**2)
-        lap[..., 0, 0] = -1.0
-
-        # Compute Fourier transforms
-        u_h = torch.fft.fftn(u, dim=[2, 3])
-        v_h = torch.fft.fftn(v, dim=[2, 3])
-        A_h = torch.fft.fftn(A, dim=[2, 3])
-
-        # Derivatives in spectral space
-        ux_h = self.Du_i(u_h, k_x)
-        uy_h = self.Du_i(u_h, k_y)
-        vx_h = self.Du_i(v_h, k_x)
-        vy_h = self.Du_i(v_h, k_y)
-
-        Ax_h = self.Du_i(A_h, k_x)
-        Ay_h = self.Du_i(A_h, k_y)
-
-        # Magnetic field components in spectral space
-        Bx_h = Ay_h
-        By_h = -Ax_h
-
-        B2_h = Bx_h**2 + By_h**2
-
-        # More derivatives
-        Bx_x_h = self.Du_i(Bx_h, k_x)
-        Bx_y_h = self.Du_i(Bx_h, k_y)
-        By_x_h = self.Du_i(By_h, k_x)
-        By_y_h = self.Du_i(By_h, k_y)
-
-        # Laplacians
-        u_lap_h = self.Lap(u_h, k_x, k_y)
-        v_lap_h = self.Lap(v_h, k_x, k_y)
-        A_lap_h = self.Lap(A_h, k_x, k_y)
-
-        # Convert back to physical space with explicit sizes
-        ux = torch.fft.irfftn(ux_h, dim=[2, 3], s=(nx, ny))
-        uy = torch.fft.irfftn(uy_h, dim=[2, 3], s=(nx, ny))
-        vx = torch.fft.irfftn(vx_h, dim=[2, 3], s=(nx, ny))
-        vy = torch.fft.irfftn(vy_h, dim=[2, 3], s=(nx, ny))
-        Ax = torch.fft.irfftn(Ax_h, dim=[2, 3], s=(nx, ny))
-        Ay = torch.fft.irfftn(Ay_h, dim=[2, 3], s=(nx, ny))
-        Bx = torch.fft.irfftn(Bx_h, dim=[2, 3], s=(nx, ny))
-        By = torch.fft.irfftn(By_h, dim=[2, 3], s=(nx, ny))
-        B2 = torch.fft.irfftn(B2_h, dim=[2, 3], s=(nx, ny))
-        Bx_x = torch.fft.irfftn(Bx_x_h, dim=[2, 3], s=(nx, ny))
-        Bx_y = torch.fft.irfftn(Bx_y_h, dim=[2, 3], s=(nx, ny))
-        By_x = torch.fft.irfftn(By_x_h, dim=[2, 3], s=(nx, ny))
-        By_y = torch.fft.irfftn(By_y_h, dim=[2, 3], s=(nx, ny))
-        u_lap = torch.fft.irfftn(u_lap_h, dim=[2, 3], s=(nx, ny))
-        v_lap = torch.fft.irfftn(v_lap_h, dim=[2, 3], s=(nx, ny))
-        A_lap = torch.fft.irfftn(A_lap_h, dim=[2, 3], s=(nx, ny))
-
-        # Calculate pressure
-        if p is None:
-            div_vel_grad_vel = ux**2 + 2 * uy * vx + vy**2
-            div_B_grad_B = Bx_x**2 + 2 * Bx_y * By_x + By_y**2
-            div_vel_grad_vel_h = torch.fft.fftn(div_vel_grad_vel, dim=[2, 3])
-            div_B_grad_B_h = torch.fft.fftn(div_B_grad_B, dim=[2, 3])
-            ptot_h = (div_B_grad_B_h - self.rho0 * div_vel_grad_vel_h) / lap
-            ptot_h[..., 0, 0] = B2_h[..., 0, 0] / 2.0
-            p_h = ptot_h - B2_h / 2.0
-        else:
-            p_h = torch.fft.fftn(p, dim=[2, 3])
-            ptot_h = p_h + B2_h / 2.0
-
-        ptot_x_h = self.Du_i(ptot_h, k_x)
-        ptot_y_h = self.Du_i(ptot_h, k_y)
-
-        p = torch.fft.irfftn(p_h, dim=[2, 3], s=(nx, ny))
-        ptot = torch.fft.irfftn(ptot_h, dim=[2, 3], s=(nx, ny))
-        ptot_x = torch.fft.irfftn(ptot_x_h, dim=[2, 3], s=(nx, ny))
-        ptot_y = torch.fft.irfftn(ptot_y_h, dim=[2, 3], s=(nx, ny))
-
-        # Calculate terms for the equations
-        vel_grad_u = u * ux + v * uy
-        vel_grad_v = u * vx + v * vy
-        B_grad_Bx = Bx * Bx_x + By * Bx_y
-        B_grad_By = Bx * By_x + By * By_y
-        vel_grad_A = u * Ax + v * Ay
-
-        # Right-hand sides of the equations
-        u_rhs = (
-            -vel_grad_u - ptot_x / self.rho0 + B_grad_Bx / self.rho0 + self.nu * u_lap
-        )
-        v_rhs = (
-            -vel_grad_v - ptot_y / self.rho0 + B_grad_By / self.rho0 + self.nu * v_lap
-        )
-        A_rhs = -vel_grad_A + self.eta * A_lap
-
-        # Time derivatives
-        u_t = self.Du_t(u, dt)
-        v_t = self.Du_t(v, dt)
-        A_t = self.Du_t(A, dt)
-
-        # Residuals
-        Du = u_t - u_rhs[:, 1:-1]
-        Dv = v_t - v_rhs[:, 1:-1]
-        DA = A_t - A_rhs[:, 1:-1]
-
-        return Du, Dv, DA
-
-    def Lap(self, u_h, k_i, k_j):
-        """Helper method to calculate laplacian of variable"""
-        lap = -(k_i**2 + k_j**2)
-        u_lap_h = lap * u_h
-        return u_lap_h
-
-    def Du_i(self, u_h, k_i):
-        """Calculate spatial derivative in Fourier space"""
-        u_i_h = (1j * k_i) * u_h
-        return u_i_h
+        return loss_ic
 
 
 @register_loss("physics-informed")
-def create_physics_informed_loss(params):
+def create_physics_informed_loss(params: Dict[str, Any]) -> MHDVecPotLoss:
     """
     Create a physics-informed loss function for MHD with vector potential formulation.
-    """
-    # Extract parameters from the config
-    nu = params.get("nu", 1e-4)
-    eta = params.get("eta", 1e-4)
-    rho0 = params.get("rho0", 1.0)
-    data_weight = params.get("data_weight", 1.0)
-    ic_weight = params.get("ic_weight", 1.0)
-    pde_weight = params.get("pde_weight", 1.0)
-    constraint_weight = params.get("constraint_weight", 1.0)
-    use_data_loss = params.get("use_data_loss", True)
-    use_ic_loss = params.get("use_ic_loss", True)
-    use_pde_loss = params.get("use_pde_loss", True)
-    use_constraint_loss = params.get("use_constraint_loss", True)
-    u_weight = params.get("u_weight", 1.0)
-    v_weight = params.get("v_weight", 1.0)
-    A_weight = params.get("A_weight", 1.0)
-    Du_weight = params.get("Du_weight", 1.0)
-    Dv_weight = params.get("Dv_weight", 1.0)
-    DA_weight = params.get("DA_weight", 1.0)
-    div_B_weight = params.get("div_B_weight", 1.0)
-    div_vel_weight = params.get("div_vel_weight", 1.0)
-    Lx = params.get("Lx", 1.0)
-    Ly = params.get("Ly", 1.0)
-    tend = params.get("tend", 1.0)
-    use_weighted_mean = params.get("use_weighted_mean", False)
 
-    return MHDVecPotLoss(
-        nu=nu,
-        eta=eta,
-        rho0=rho0,
-        data_weight=data_weight,
-        ic_weight=ic_weight,
-        pde_weight=pde_weight,
-        constraint_weight=constraint_weight,
-        use_data_loss=use_data_loss,
-        use_ic_loss=use_ic_loss,
-        use_pde_loss=use_pde_loss,
-        use_constraint_loss=use_constraint_loss,
-        u_weight=u_weight,
-        v_weight=v_weight,
-        A_weight=A_weight,
-        Du_weight=Du_weight,
-        Dv_weight=Dv_weight,
-        DA_weight=DA_weight,
-        div_B_weight=div_B_weight,
-        div_vel_weight=div_vel_weight,
-        Lx=Lx,
-        Ly=Ly,
-        tend=tend,
-        use_weighted_mean=use_weighted_mean,
-    )
+    Args:
+        params: Dictionary of parameters for the loss function
+
+    Returns:
+        Configured MHDVecPotLoss instance
+    """
+    # You can optionally filter out the 'type' key here if you want
+    # params_copy = {k: v for k, v in params.items() if k != 'type'}
+    # return MHDVecPotLoss(**params_copy)
+
+    # Or simply pass all params which is fine since we added **kwargs to the constructor
+    return MHDVecPotLoss(**params)

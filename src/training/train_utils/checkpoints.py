@@ -57,7 +57,11 @@ def load_checkpoint(ckpt_path, model, optimizer=None, scheduler=None):
         print(f"Checkpoint {ckpt_path} does not exist. Starting from scratch.")
         return {"epoch": 0, "loss": float("inf"), "denorm_loss": float("inf")}
 
-    checkpoint = torch.load(ckpt_path)
+    checkpoint = torch.load(ckpt_path, weights_only=False)
+
+    # Clean up the model state dict if _metadata is present
+    if "_metadata" in checkpoint["model_state_dict"]:
+        del checkpoint["model_state_dict"]["_metadata"]
 
     # Handle DDP model
     if isinstance(model, DDP):

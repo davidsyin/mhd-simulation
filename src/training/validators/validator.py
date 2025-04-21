@@ -69,11 +69,11 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
         device: Device to run evaluation on
 
     Returns:
-        tuple: (normalized_loss, denormalized_loss)
+        tuple: Avg(total_model_loss, total_denorm_mse)
     """
     model.eval()
-    normalized_mse = 0.0
-    denormalized_mse = 0.0
+    total_model_loss = 0.0
+    total_denorm_mse = 0.0
     data_time = 0
     forward_time = 0
     denorm_time = 0
@@ -111,11 +111,11 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
 
             # Calculate normalized loss (used for training)
             if use_physics_loss:
-                normalized_loss = criterion(val_loader, pred, y, x)
-                normalized_mse += normalized_loss.item()
+                model_loss = criterion(val_loader, pred, y, x)
+                total_model_loss += model_loss.item()
             else:
-                normalized_loss = criterion(pred, y)
-                normalized_mse += normalized_loss.item()
+                model_loss = criterion(pred, y)
+                total_model_loss += model_loss.item()
 
             # Calculate denormalized MSE if normalizer exists
             if normalizer is not None:
@@ -127,13 +127,13 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
                 y_denorm = normalizer.denormalize(y)
 
                 denorm_loss = mse_criterion(pred_denorm, y_denorm)
-                denormalized_mse += denorm_loss.item()
+                total_denorm_mse += denorm_loss.item()
                 denorm_time += time.time() - denorm_start
             else:
-                denormalized_mse = normalized_mse
+                total_denorm_mse = total_model_loss
 
-    avg_normalized_mse = normalized_mse / len(val_loader)
-    avg_denormalized_mse = denormalized_mse / len(val_loader)
+    avg_total_model_loss = total_model_loss / len(val_loader)
+    avg_total_denorm_mse = total_denorm_mse / len(val_loader)
 
     print(f"Validation Loop Statistics:")
     print(f"- Data transfer: {data_time:.2f}s")
@@ -144,4 +144,4 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
     print("=" * 30)
     torch.cuda.empty_cache()
 
-    return avg_normalized_mse, avg_denormalized_mse
+    return avg_total_model_loss, avg_total_denorm_mse

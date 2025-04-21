@@ -162,14 +162,14 @@ def train(config_path, data_path):
         epoch_time = time.time() - epoch_start_time
         print(
             f"\nEpoch {epoch} ({epoch_time:.2f}s): Train Loss: {train_loss:.6f}, "
-            f"Val Loss (Norm): {val_loss:.6f}, Val Loss (Denorm): {denorm_val_loss:.6f}, "
+            f"Val Loss (Model): {val_loss:.6f}, Val Loss (Denorm MSE): {denorm_val_loss:.6f}, "
             f"LR: {scheduler.get_last_lr()[0] if not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau) else optimizer.param_groups[0]['lr']}\n"
         )
 
         # Log to tensorboard
         tb_writer.add_scalar("Loss/train", train_loss, epoch)
-        tb_writer.add_scalar("Loss/val_normalized", val_loss, epoch)
-        tb_writer.add_scalar("Loss/val_denormalized", denorm_val_loss, epoch)
+        tb_writer.add_scalar("Loss/val_model", val_loss, epoch)
+        tb_writer.add_scalar("Loss/val_denorm_mse", denorm_val_loss, epoch)
         tb_writer.add_scalar(
             "LearningRate",
             (

@@ -181,7 +181,10 @@ def train(config_path, data_path):
         )
 
         # Save prediction plots
-        if epoch % wandb_config.get("wandb_plot_freq", 5) == 0:
+        if (
+            epoch % wandb_config.get("wandb_plot_freq", 5) == 0
+            or epoch == train_params["epochs"] - 1
+        ):
             save_prediction_plots(
                 model,
                 val_loader,

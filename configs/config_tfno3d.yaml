@@ -150,7 +150,7 @@ optimizer_params:
 ###################
 ## Train params
 train_params:
-  epochs: 100
+  epochs: 7
   ckpt_path: "checkpoints/model_test.pt"
   load_ckpt: "" # Leave empty to start from scratch
 
@@ -159,6 +159,6 @@ train_params:
 wandb_params:
   wandb_dir: "/u/skacmaz/NODs/logsfno_test/"
   wandb_project: "MHD_PINO"
-  wandb_group: "MHD_TFNO3d"
+  wandb_group: "MHD_FNO3d"
   wandb_num_plots: 2
   wandb_plot_freq: 5

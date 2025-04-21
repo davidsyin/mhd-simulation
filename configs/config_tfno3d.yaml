@@ -1,20 +1,20 @@
 ####################
 ## Model options
 model_params:
-  model_type: "tfno"
+  model_type: "fno"
   model_variant: "3d" # optional
   # width: 8 # hidden_channels in TFNO3d
   # modes1: 8 # x dimension modes
   # modes2: 8 # y dimension modes
   # modes3: 8 # t dimension modes
-  fc_dim: 256 # For lifting_channels and projection_channels
+  # fc_dim: 256 # For lifting_channels and projection_channels
   in_channels: 6 # u_x, u_y, A
   out_channels: 3 # u_x, u_y, A
   decoder_layers: 1
   dimension: 3
-  latent_channels: 8 # aka fno_layer_size and fno_width
+  latent_channels: 32 # aka fno_layer_size and fno_width
   num_fno_layers: 4 # n_layers in TFNO3d
-  num_fno_modes: [8, 8, 8]
+  num_fno_modes: 20
   padding: [5, 0, 0]
   padding_type: "constant"
   activation_fn: "gelu"
@@ -22,8 +22,8 @@ model_params:
   # pad_x: 0.00 # padding ratio in x direction
   # pad_y: 0.00 # padding ratio in y direction
   # pad_z: 0.00 # padding ratio in t direction
-  rank: 0.5 # Tensor factorization rank
-  factorization: "cp"
+  # rank: 1000  # Tensor factorization rank (either a float in [0.0, 1.0] or an integer > 1)
+  # factorization: "cp"
   # positional_embedding: False
 
 ###################
@@ -95,7 +95,7 @@ loss_params:
 # loss_params:
 #   type: "mse"
 #   reduction: "mean"
-
+#
 # # Or a more complex example:
 # loss_params:
 #   type: "weighted_mse"
@@ -141,7 +141,7 @@ optimizer_params:
   scheduler_type: "reducelr" # options: multistep, cosine, reducelr, dummy
   mode: "min"
   factor: 0.7
-  patience: 2
+  patience: 3
 
   # scheduler_type: "cosine"
   # T_max: 300
@@ -151,14 +151,13 @@ optimizer_params:
 ## Train params
 train_params:
   epochs: 100
-  ckpt_freq: 50
-  ckpt_path: "checkpoints/model"
+  ckpt_path: "checkpoints/model_test.pt"
   load_ckpt: "" # Leave empty to start from scratch
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logs/"
+  wandb_dir: "/u/skacmaz/NODs/logsfno_test/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_TFNO3d"
   wandb_num_plots: 2

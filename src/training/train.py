@@ -191,18 +191,6 @@ def train(config_path, data_path):
                 num_samples=wandb_config.get("wandb_num_plots", 2),
             )
 
-        # Save checkpoint with periodic frequency
-        if epoch % train_params.get("ckpt_freq", 10) == 0:
-            save_checkpoint(
-                model,
-                optimizer,
-                epoch,
-                val_loss,
-                scheduler,
-                f"{train_params['ckpt_path']}.{epoch}",
-                denorm_loss=denorm_val_loss,  # Include denormalized loss
-            )
-
         # Save best model based on normalized loss (original behavior)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
@@ -218,7 +206,7 @@ def train(config_path, data_path):
                 denorm_loss=denorm_val_loss,
             )
             print(
-                f"Saved best model at epoch {epoch} with val_loss {val_loss:.6f} (denorm: {denorm_val_loss:.6f})\n"
+                f"Saved best model at epoch {epoch} with val_loss {val_loss:.6f} (denorm: {denorm_val_loss:.6f}) under {train_params['ckpt_path']}\n"
             )
 
             # Also track if this is the best denormalized loss

@@ -234,3 +234,32 @@ def tfno_3d_config():
             "factorization": "cp",
         }
     }
+
+
+@pytest.fixture
+def fno_config():
+    """Return a test configuration for FNO model."""
+    return {
+        "model_params": {
+            "model_type": "fno",
+            "model_variant": "3d",
+            "in_channels": 6,
+            "out_channels": 3,
+            "dimension": 3,
+            "latent_channels": 8,
+            "num_fno_layers": 2,
+            "num_fno_modes": 4,
+            "padding": 0,
+            "activation_fn": "gelu",
+            "coord_features": False,
+        },
+        "normalization_params": {
+            "type": "physics",
+            "input_norm": [1.0, 1.0, 2.5e-4],
+            "output_norm": [1.0, 1.0, 2.5e-4],
+        },
+        "loss_params": {
+            "type": "mse",
+            "reduction": "mean",
+        },
+    }

@@ -81,12 +81,12 @@ def train(config_path, data_path):
         sub_t=sub_t,
         sub_x=sub_x,
     )
-    print(f"Dataloaders created in {time.time() - start_time:.2f} seconds")
+    print(f"Dataloaders created in {time.time() - start_time:.2f} seconds\n")
 
     print("Checking data shapes from first batch:")
     x_batch, y_batch = next(iter(train_loader))
     print(f"Input batch shape: {x_batch.shape}")
-    print(f"Output batch shape: {y_batch.shape}")
+    print(f"Output batch shape: {y_batch.shape}\n")
 
     print("Creating model...")
     model = create_model(config)
@@ -216,7 +216,7 @@ def train(config_path, data_path):
             if denorm_val_loss < best_denorm_val_loss:
                 best_denorm_val_loss = denorm_val_loss
                 print(
-                    f"New best denormalized loss at epoch {epoch}: {denorm_val_loss:.6f} (norm: {val_loss:.6f})"
+                    f"New best denormalized loss at epoch {epoch}: {denorm_val_loss:.6f} (norm: {val_loss:.6f})\n"
                 )
 
             # Save energy spectra plots for the best model (if enabled)

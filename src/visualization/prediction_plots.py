@@ -42,12 +42,14 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
         # Create a GPU copy rather than moving the original
         if hasattr(normalizer, "to"):
             normalizer = copy.deepcopy(normalizer).to(device)
-            print(
-                f"Using dataset-level {normalizer.__class__.__name__} to denormalize for visualization"
-            )
+            # # Debug print
+            # print(
+            #     f"Using dataset-level {normalizer.__class__.__name__} to denormalize for visualization"
+            # )
     else:
         normalizer = None
-        print("No normalization found - visualizing raw data")
+        # # Debug print
+        # print("No normalization found - visualizing raw data")
 
     with torch.no_grad():
         try:
@@ -57,14 +59,16 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
             has_grid_embeddings = x.shape[1] > y.shape[1]
             data_channels = y.shape[1]  # Number of data channels (3 for u_x, u_y, A)
 
-            print(f"Input shape: {x.shape}, Output shape: {y.shape}")
-            print(f"Detected grid embeddings: {has_grid_embeddings}")
+            # # Debug print
+            # print(f"Input shape: {x.shape}, Output shape: {y.shape}")
+            # print(f"Detected grid embeddings: {has_grid_embeddings}")
 
             if has_grid_embeddings:
                 data_channel_indices = list(
                     range(x.shape[1] - data_channels, x.shape[1])
                 )
-                print(f"Using data channels from input: {data_channel_indices}")
+                # # Debug print
+                # print(f"Using data channels from input: {data_channel_indices}")
             else:
                 data_channel_indices = list(range(x.shape[1]))
 

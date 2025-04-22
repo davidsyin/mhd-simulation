@@ -35,7 +35,6 @@ class MHDDataset(Dataset):
             sub_t: Subsampling factor for time dimension
             sub_x: Subsampling factor for spatial dimensions
         """
-        print(f"Initializing MHDDataset with data of shape {y_data.shape}")
 
         self.num_samples, self.channels, self.timesteps, self.nx, self.ny = y_data.shape
         self.x_data = x_data
@@ -48,22 +47,13 @@ class MHDDataset(Dataset):
         self.normalizer = None
         if normalization_config:
             self.normalizer = create_normalization(normalization_config)
-            norm_type = normalization_config.get("normalization_params", {}).get(
-                "type", "unknown"
-            )
-            print(f"Using {norm_type} normalization at dataset level")
 
         np.random.seed(seed)
-        print(f"Dataset using random seed: {seed} for {split} split")
 
         # Create train/val/test indices
         indices = np.random.permutation(self.num_samples)
         train_size = int(train_ratio * self.num_samples)
         val_size = math.ceil((1 - train_ratio) / 2 * self.num_samples)
-
-        print(
-            f"Split sizes - Train: {train_size}, Val: {val_size}, Test: {self.num_samples - train_size - val_size}"
-        )
 
         if split == "train":
             self.indices = indices[:train_size]
@@ -86,10 +76,6 @@ class MHDDataset(Dataset):
         self.nt = len(self.t)
         self.nx = len(self.x)
         self.ny = len(self.y)
-
-        print(
-            f"Dataset initialized with dimensions: nt={self.nt}, nx={self.nx}, ny={self.ny}"
-        )
 
         # Precompute grid tensors (once, not per sample)
         t_tensor = torch.from_numpy(self.t.astype(np.float32))
@@ -187,6 +173,9 @@ def get_dataloaders(
                 "\n***WARNING: If they exist, statistics provided in the main config file will be used! Make sure you are providing correct stats for the correct normalization option!***\n"
             )
 
+        norm_type = norm_params.get("type", "unknown")
+        print(f"Using {norm_type} normalization at dataset level\n")
+
     print(f"Loading data from {data_path}")
     print(f"This may take a few moments for large datasets...")
 
@@ -204,6 +193,7 @@ def get_dataloaders(
 
     print(f"\nCreating dataloaders with train_ratio={train_ratio}, seed={seed}")
     print(f"Subsampling factors: sub_t={sub_t}, sub_x={sub_x}")
+    print(f"Datasets using random seed: {seed} for each split")
 
     # Create datasets with the processed normalization config
     train_dataset = MHDDataset(

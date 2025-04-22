@@ -120,12 +120,14 @@ def save_spectra_plots(
         # Create a GPU copy rather than moving the original
         if hasattr(normalizer, "to"):
             normalizer = copy.deepcopy(normalizer).to(device)
-            print(
-                f"Using dataset-level {normalizer.__class__.__name__} to denormalize for energy spectra"
-            )
+            # # Debug print
+            # print(
+            #     f"Using dataset-level {normalizer.__class__.__name__} to denormalize for energy spectra"
+            # )
     else:
         normalizer = None
-        print("No normalization found - calculating spectra from raw data")
+        # # Debug print
+        # print("No normalization found - calculating spectra from raw data")
 
     with torch.no_grad():
         try:
@@ -135,14 +137,16 @@ def save_spectra_plots(
             has_grid_embeddings = x.shape[1] > y.shape[1]
             data_channels = y.shape[1]  # Number of data channels (3 for u_x, u_y, A)
 
-            print(f"Input shape: {x.shape}, Output shape: {y.shape}")
-            print(f"Detected grid embeddings: {has_grid_embeddings}")
+            # # Debug print
+            # print(f"Input shape: {x.shape}, Output shape: {y.shape}")
+            # print(f"Detected grid embeddings: {has_grid_embeddings}")
 
             if has_grid_embeddings:
                 data_channel_indices = list(
                     range(x.shape[1] - data_channels, x.shape[1])
                 )
-                print(f"Using data channels from input: {data_channel_indices}")
+                # # Debug print
+                # print(f"Using data channels from input: {data_channel_indices}")
             else:
                 data_channel_indices = list(range(x.shape[1]))
 
@@ -183,7 +187,8 @@ def save_spectra_plots(
                     print(f"Warning: Could not extract grid spacing: {e}")
                     print("Using default grid spacing dx=dy=1.0")
 
-            print(f"Using grid spacing dx={dx}, dy={dy} for spectra calculation")
+            # # Debug print
+            # print(f"Using grid spacing dx={dx}, dy={dy} for spectra calculation")
 
             # Store all computed spectra data
             all_spectra_data = []
@@ -303,7 +308,7 @@ def save_spectra_plots(
             pickle_file_path = os.path.join(best_spectra_dir, "best_model_spectra.pkl")
             with open(pickle_file_path, "wb") as f:
                 pickle.dump(all_spectra_data, f)
-            print(f"Saved all best model spectra data to {pickle_file_path}")
+            print(f"Saved all best model spectra data to {pickle_file_path}\n")
 
         except Exception as e:
             print(f"Warning: Could not create spectra plots for best model: {e}")

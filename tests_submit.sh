@@ -6,8 +6,8 @@
 #SBATCH --ntasks-per-node=1
 # #SBATCH --cpus-per-task=1
 #SBATCH --gpus=1                              # Number of GPUs to allocate
-#SBATCH --time=00:15:00
-#SBATCH --mem=600G
+#SBATCH --time=00:02:00
+# #SBATCH --mem=600G
 #SBATCH --output=slurm_logs/tests_%j.log
 #SBATCH --error=slurm_logs/tests_%j.err
 # #SBATCH --nodelist=gpua057 # Optional, but recommended if there's availability

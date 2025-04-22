@@ -1,14 +1,11 @@
 """Energy spectra visualization for MHD simulations."""
 
 import os
-from typing import Optional, Union, Tuple, List, Dict
+from typing import Union, Tuple, List, Dict
 import copy
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-from matplotlib.ticker import ScalarFormatter
-
-from .utils import safe_float_conversion
 
 
 def compute_energy_spectra(

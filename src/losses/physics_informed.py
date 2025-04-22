@@ -13,6 +13,12 @@ from .lp_loss import LpLoss
 from ..physics.constraints import compute_constraints, compute_constraint_loss
 from ..physics.pde_solvers import compute_mhd_pde, compute_pde_loss
 
+from ..utils import (
+    get_dataset_normalizer,
+    identify_data_channels,
+    apply_denormalization,
+)
+
 
 class MHDVecPotLoss(nn.Module):
     """
@@ -141,50 +147,18 @@ class MHDVecPotLoss(nn.Module):
         Returns:
             Total weighted loss
         """
-        # Check if dataset has a normalizer
-        has_dataset_normalizer = (
-            hasattr(dataloader.dataset, "normalizer")
-            and dataloader.dataset.normalizer is not None
+        normalizer = get_dataset_normalizer(dataloader)
+
+        # Identify data channels and check for grid embeddings
+        data_channel_indices, has_grid_embeddings, _ = identify_data_channels(
+            inputs, target
         )
 
-        # Get normalizer if available
-        if has_dataset_normalizer:
-            normalizer = dataloader.dataset.normalizer
-        else:
-            normalizer = None
-
-        # Check if inputs include grid embeddings
-        has_grid_embeddings = inputs.shape[1] > target.shape[1]
-        data_channels = target.shape[1]  # Number of data channels (3 for u_x, u_y, A)
-
-        # Identify data channels in inputs
-        if has_grid_embeddings:
-            data_channel_indices = list(
-                range(inputs.shape[1] - data_channels, inputs.shape[1])
-            )
-        else:
-            data_channel_indices = list(range(inputs.shape[1]))
-
         # Denormalize the data if a normalizer is available
-        if normalizer is not None and hasattr(normalizer, "denormalize"):
-            # Handle separate denormalization for input and output when dimensions differ
-            if has_grid_embeddings:
-                # For input tensor, we only want to denormalize the data channels, not the grid
-                inputs_data_only = inputs[:, data_channel_indices]
-                inputs_denorm = normalizer.denormalize(inputs_data_only)
-            else:
-                # If no grid embeddings, denormalize the whole input
-                inputs_denorm = normalizer.denormalize(inputs)
+        inputs_denorm, target_denorm, pred_denorm = apply_denormalization(
+            inputs, target, pred, normalizer, data_channel_indices, has_grid_embeddings
+        )
 
-            target_denorm = normalizer.denormalize(target)
-            pred_denorm = normalizer.denormalize(pred)
-        else:
-            # If no normalizer is available, use the data as is
-            inputs_denorm = inputs
-            target_denorm = target
-            pred_denorm = pred
-
-        # Compute loss with denormalized data
         return self.compute_loss(pred_denorm, target_denorm, inputs_denorm)
 
     def compute_loss(self, pred: Tensor, target: Tensor, inputs: Tensor) -> Tensor:

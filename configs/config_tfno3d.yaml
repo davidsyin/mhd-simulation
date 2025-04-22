@@ -164,5 +164,3 @@ wandb_params:
   wandb_plot_freq: 5
 
   plot_energy_spectra: True     # Enable energy spectra plotting
-  spectra_ymin: 1e-10           # Minimum energy value (lower bound for log scale)
-  spectra_ymax: null            # Maximum energy value (auto by default)

@@ -6,7 +6,14 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 
 
 def save_checkpoint(
-    model, optimizer, epoch, loss, scheduler, ckpt_path, denorm_loss=None
+    model,
+    optimizer,
+    epoch,
+    loss,
+    scheduler,
+    ckpt_path,
+    denorm_loss_rel_l2=None,
+    denorm_loss_mse=None,
 ):
     """Save checkpoint
 
@@ -17,7 +24,8 @@ def save_checkpoint(
         loss: Current loss value
         scheduler: Learning rate scheduler
         ckpt_path: Path to save checkpoint
-        denorm_loss: Denormalized loss value (optional)
+        denorm_loss_rel_l2: Denormalized loss value-- Relative L2 (optional)
+        denorm_loss_mse: Denormalized loss value-- MSE (optional)
     """
     # If using DDP, save only the model's module
     if isinstance(model, DDP):
@@ -34,9 +42,11 @@ def save_checkpoint(
         "loss": loss,
     }
 
-    # Add denormalized loss if provided
-    if denorm_loss is not None:
-        checkpoint_data["denorm_loss"] = denorm_loss
+    # Add denormalized losses if provided
+    if denorm_loss_rel_l2 is not None:
+        checkpoint_data["denorm_loss_rel_l2"] = denorm_loss_rel_l2
+    if denorm_loss_mse is not None:
+        checkpoint_data["denorm_loss_mse"] = denorm_loss_mse
 
     torch.save(checkpoint_data, ckpt_path)
 
@@ -55,7 +65,12 @@ def load_checkpoint(ckpt_path, model, optimizer=None, scheduler=None):
     """
     if not os.path.exists(ckpt_path):
         print(f"Checkpoint {ckpt_path} does not exist. Starting from scratch.")
-        return {"epoch": 0, "loss": float("inf"), "denorm_loss": float("inf")}
+        return {
+            "epoch": 0,
+            "loss": float("inf"),
+            "denorm_loss_rel_l2": float("inf"),
+            "denorm_loss_mse": float("inf"),
+        }
 
     checkpoint = torch.load(ckpt_path, weights_only=False)
 
@@ -79,7 +94,8 @@ def load_checkpoint(ckpt_path, model, optimizer=None, scheduler=None):
     result = {
         "epoch": checkpoint["epoch"],
         "loss": checkpoint["loss"],
-        "denorm_loss": checkpoint.get("denorm_loss", float("inf")),
+        "denorm_loss_rel_l2": checkpoint.get("denorm_loss_rel_l2", float("inf")),
+        "denorm_loss_mse": checkpoint.get("denorm_loss_mse", float("inf")),
     }
 
     return result

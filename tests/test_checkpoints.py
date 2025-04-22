@@ -66,7 +66,8 @@ def test_save_load_checkpoint(mini_config, test_checkpoint_dir, device):
         loss=0.1,
         scheduler=scheduler,
         ckpt_path=checkpoint_path,
-        denorm_loss=0.5,
+        denorm_loss_rel_l2=0.5,
+        denorm_loss_mse=0.5,
     )
 
     assert os.path.exists(checkpoint_path), "Checkpoint file should exist"
@@ -95,9 +96,12 @@ def test_save_load_checkpoint(mini_config, test_checkpoint_dir, device):
 
     assert checkpoint_data["epoch"] == 5, "Loaded epoch should be 5"
     assert checkpoint_data["loss"] == pytest.approx(0.1), "Loaded loss should be 0.1"
-    assert checkpoint_data["denorm_loss"] == pytest.approx(0.5), (
-        "Loaded denorm_loss should be 0.5"
-    )
+    assert checkpoint_data["denorm_loss_rel_l2"] == pytest.approx(
+        0.5
+    ), "Loaded denorm_loss_rel_l2 should be 0.5"
+    assert checkpoint_data["denorm_loss_mse"] == pytest.approx(
+        0.5
+    ), "Loaded denorm_loss_mse should be 0.5"
 
     original_params = list(model.parameters())
     loaded_params = list(new_model.parameters())
@@ -185,7 +189,8 @@ def test_checkpoint_with_dataset(
         loss=avg_loss,
         scheduler=scheduler,
         ckpt_path=checkpoint_path,
-        denorm_loss=avg_loss * 10,  # Just a dummy denormalized loss for testing
+        denorm_loss_rel_l2=avg_loss * 10,
+        denorm_loss_mse=avg_loss * 10,  # Just a dummy denormalized loss for testing
     )
 
     # Create a new model instance to test loading
@@ -220,9 +225,9 @@ def test_checkpoint_with_dataset(
         original_output = model(test_inputs)
         loaded_output = new_model(test_inputs)
 
-        assert torch.allclose(original_output, loaded_output, rtol=1e-5, atol=1e-5), (
-            "Model outputs should match after loading"
-        )
+        assert torch.allclose(
+            original_output, loaded_output, rtol=1e-5, atol=1e-5
+        ), "Model outputs should match after loading"
 
 
 def test_checkpoint_nonexistent_path(mini_config, device):
@@ -236,11 +241,14 @@ def test_checkpoint_nonexistent_path(mini_config, device):
     fallback_data = load_checkpoint(ckpt_path=non_existent_path, model=model)
 
     # Verify fallback values
-    assert fallback_data["epoch"] == 0, "Fallback epoch should [118;1:3ube 0"
+    assert fallback_data["epoch"] == 0, "Fallback epoch should be 0"
     assert fallback_data["loss"] == float("inf"), "Fallback loss should be infinity"
-    assert fallback_data["denorm_loss"] == float("inf"), (
-        "Fallback denorm_loss should be infinity"
-    )
+    assert fallback_data["denorm_loss_rel_l2"] == float(
+        "inf"
+    ), "Fallback denorm_loss_rel_l2 should be infinity"
+    assert fallback_data["denorm_loss_mse"] == float(
+        "inf"
+    ), "Fallback denorm_loss_mse should be infinity"
 
 
 def test_checkpoint_distributed_data_parallel(mini_config, test_checkpoint_dir, device):

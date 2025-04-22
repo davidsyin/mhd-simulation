@@ -5,6 +5,8 @@ import torch.nn as nn
 from tqdm import tqdm
 import time
 
+from ...losses import LpLoss
+
 
 def validate(model, val_loader, criterion, device):
     """Validate model performance with optimized memory handling
@@ -69,10 +71,11 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
         device: Device to run evaluation on
 
     Returns:
-        tuple: Avg(total_model_loss, total_denorm_mse)
+        tuple: Avg(total_model_loss, total_denorm_rel_l2, total_denorm_mse)
     """
     model.eval()
     total_model_loss = 0.0
+    total_denorm_rel_l2 = 0.0
     total_denorm_mse = 0.0
     data_time = 0
     forward_time = 0
@@ -83,6 +86,7 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
         and val_loader.dataset.normalizer is not None
     )
     mse_criterion = nn.MSELoss(reduction="mean")
+    rel_l2 = LpLoss()
 
     # Check if we're using physics-informed loss
     use_physics_loss = (
@@ -126,13 +130,17 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
                 pred_denorm = normalizer.denormalize(pred)
                 y_denorm = normalizer.denormalize(y)
 
-                denorm_loss = mse_criterion(pred_denorm, y_denorm)
-                total_denorm_mse += denorm_loss.item()
+                denorm_loss_l2 = rel_l2(pred_denorm, y_denorm)
+                denorm_loss_mse = mse_criterion(pred_denorm, y_denorm)
+                total_denorm_rel_l2 += denorm_loss_l2.item()
+                total_denorm_mse += denorm_loss_mse.item()
                 denorm_time += time.time() - denorm_start
             else:
+                total_denorm_rel_l2 = total_model_loss
                 total_denorm_mse = total_model_loss
 
     avg_total_model_loss = total_model_loss / len(val_loader)
+    avg_total_denorm_rel_l2 = total_denorm_rel_l2 / len(val_loader)
     avg_total_denorm_mse = total_denorm_mse / len(val_loader)
 
     print(f"Validation Loop Statistics:")
@@ -144,4 +152,4 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
     print("=" * 30)
     torch.cuda.empty_cache()
 
-    return avg_total_model_loss, avg_total_denorm_mse
+    return avg_total_model_loss, avg_total_denorm_rel_l2, avg_total_denorm_mse

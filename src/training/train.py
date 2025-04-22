@@ -116,7 +116,8 @@ def train(config_path, data_path):
     # Load checkpoint if specified
     train_params = config["train_params"]
     start_epoch, best_val_loss = 0, float("inf")
-    best_denorm_val_loss = float("inf")  # Track best denormalized validation loss
+    best_denorm_val_rel_l2 = float("inf")
+    best_denorm_val_mse = float("inf")  # Track best denormalized validation loss
 
     if train_params.get("load_ckpt") and os.path.exists(train_params["load_ckpt"]):
         print(f"Loading checkpoint from {train_params['load_ckpt']}")
@@ -127,7 +128,8 @@ def train(config_path, data_path):
         # Unpack checkpoint data - now returned as a dict
         start_epoch = checkpoint_data["epoch"]
         best_val_loss = checkpoint_data["loss"]
-        best_denorm_val_loss = checkpoint_data.get("denorm_loss", float("inf"))
+        best_denorm_val_rel_l2 = checkpoint_data.get("denorm_loss_rel_l2", float("inf"))
+        best_denorm_val_mse = checkpoint_data.get("denorm_loss_mse", float("inf"))
 
         start_epoch += 1  # Start from the next epoch
 
@@ -149,7 +151,7 @@ def train(config_path, data_path):
             train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
 
         # Validate with both normalized and denormalized metrics
-        val_loss, denorm_val_loss = validate_with_denorm_metrics(
+        val_loss, denorm_val_rel_l2, denorm_val_mse = validate_with_denorm_metrics(
             model, val_loader, criterion, device
         )
 
@@ -162,14 +164,15 @@ def train(config_path, data_path):
         epoch_time = time.time() - epoch_start_time
         print(
             f"\nEpoch {epoch} ({epoch_time:.2f}s): Train Loss: {train_loss:.6f}, "
-            f"Val Loss (Model): {val_loss:.6f}, Val Loss (Denorm MSE): {denorm_val_loss:.6f}, "
+            f"Val Loss (Model): {val_loss:.6f}, Val Loss (Denorm Rel L2): {denorm_val_rel_l2:.6f}, Val Loss (Denorm MSE): {denorm_val_mse:.6f}, "
             f"LR: {scheduler.get_last_lr()[0] if not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau) else optimizer.param_groups[0]['lr']}\n"
         )
 
         # Log to tensorboard
         tb_writer.add_scalar("Loss/train", train_loss, epoch)
         tb_writer.add_scalar("Loss/val_model", val_loss, epoch)
-        tb_writer.add_scalar("Loss/val_denorm_mse", denorm_val_loss, epoch)
+        tb_writer.add_scalar("Loss/val_denorm_rel_l2", denorm_val_rel_l2, epoch)
+        tb_writer.add_scalar("Loss/val_denorm_mse", denorm_val_mse, epoch)
         tb_writer.add_scalar(
             "LearningRate",
             (
@@ -206,17 +209,24 @@ def train(config_path, data_path):
                 val_loss,
                 scheduler,
                 train_params["ckpt_path"],
-                denorm_loss=denorm_val_loss,
+                denorm_loss_rel_l2=denorm_val_rel_l2,
+                denorm_loss_mse=denorm_val_mse,
             )
             print(
-                f"Saved best model at epoch {epoch} with val_loss {val_loss:.6f} (denorm: {denorm_val_loss:.6f}) under {train_params['ckpt_path']}\n"
+                f"Saved best model at epoch {epoch} with val_loss {val_loss:.6f} (denorm: {denorm_val_mse:.6f}) under {train_params['ckpt_path']}\n"
             )
 
             # Also track if this is the best denormalized loss
-            if denorm_val_loss < best_denorm_val_loss:
-                best_denorm_val_loss = denorm_val_loss
+            if denorm_val_rel_l2 < best_denorm_val_rel_l2:
+                best_denorm_val_rel_l2 = denorm_val_rel_l2
                 print(
-                    f"New best denormalized loss at epoch {epoch}: {denorm_val_loss:.6f} (norm: {val_loss:.6f})\n"
+                    f"New best denormalized relative L2 loss at epoch {epoch}: {denorm_val_rel_l2:.6f} (norm: {val_loss:.6f})\n"
+                )
+
+            if denorm_val_mse < best_denorm_val_mse:
+                best_denorm_val_mse = denorm_val_mse
+                print(
+                    f"New best denormalized MSE loss at epoch {epoch}: {denorm_val_mse:.6f} (norm: {val_loss:.6f})\n"
                 )
 
             # Save energy spectra plots for the best model (if enabled)
@@ -238,17 +248,20 @@ def train(config_path, data_path):
         torch.cuda.empty_cache()
 
     # Evaluate on test set using both metrics
-    test_loss, denorm_test_loss = validate_with_denorm_metrics(
+    test_loss, denorm_test_rel_l2, denorm_test_mse = validate_with_denorm_metrics(
         model, test_loader, criterion, device
     )
 
     print("=" * 40)
     print(f"\nFinal test loss (normalized): {test_loss:.6f}")
-    print(f"Final test loss (denormalized): {denorm_test_loss:.6f}")
+    print(f"Final test loss (denormalized): {denorm_test_mse:.6f}")
     print("=" * 40)
 
     tb_writer.add_scalar("Loss/test_normalized", test_loss, train_params["epochs"])
     tb_writer.add_scalar(
-        "Loss/test_denormalized", denorm_test_loss, train_params["epochs"]
+        "Loss/test_denorm_rel_l2", denorm_test_rel_l2, train_params["epochs"]
+    )
+    tb_writer.add_scalar(
+        "Loss/test_denorm_mse", denorm_test_mse, train_params["epochs"]
     )
     tb_writer.close()

@@ -60,23 +60,17 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
             print(f"Input shape: {x.shape}, Output shape: {y.shape}")
             print(f"Detected grid embeddings: {has_grid_embeddings}")
 
-            # We need to determine which channels in the input correspond to data vs. positional embeddings
             if has_grid_embeddings:
-                # Assume grid embeddings come first, and data channels are last
-                # In your case, first 3 channels are coordinates (grid embeddings) and last 3 are data
                 data_channel_indices = list(
                     range(x.shape[1] - data_channels, x.shape[1])
                 )
                 print(f"Using data channels from input: {data_channel_indices}")
             else:
-                # All channels are data
                 data_channel_indices = list(range(x.shape[1]))
 
             pred = model(x)
 
-            # Denormalize the data if a normalizer is available
             if normalizer is not None and hasattr(normalizer, "denormalize"):
-                # Handle separate denormalization for input and output when dimensions differ
                 if has_grid_embeddings:
                     # For input tensor, we only want to denormalize the data channels, not the grid
                     x_data_only = x[:, data_channel_indices]

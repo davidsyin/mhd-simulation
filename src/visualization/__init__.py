@@ -1,5 +1,6 @@
-"""Visualization utilities for model outputs and evaluation."""
+"""Visualization module for NODs."""
 
-from .plots import save_prediction_plots
+from .prediction_plots import save_prediction_plots
+from .spectra_plots import save_spectra_plots, load_best_spectra_data
 
-__all__ = ["save_prediction_plots"]
+__all__ = ["save_prediction_plots", "save_spectra_plots", "load_best_spectra_data"]

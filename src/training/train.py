@@ -194,7 +194,7 @@ def train(config_path, data_path):
                 num_samples=wandb_config.get("wandb_num_plots", 2),
             )
 
-        # Save best model based on normalized loss (original behavior)
+        # Save best model based on normalized loss
         if val_loss < best_val_loss:
             best_val_loss = val_loss
 
@@ -205,7 +205,7 @@ def train(config_path, data_path):
                 epoch,
                 val_loss,
                 scheduler,
-                train_params["ckpt_path"],  # Use original path without suffix
+                train_params["ckpt_path"],
                 denorm_loss=denorm_val_loss,
             )
             print(
@@ -215,14 +215,22 @@ def train(config_path, data_path):
             # Also track if this is the best denormalized loss
             if denorm_val_loss < best_denorm_val_loss:
                 best_denorm_val_loss = denorm_val_loss
+                print(
+                    f"New best denormalized loss at epoch {epoch}: {denorm_val_loss:.6f} (norm: {val_loss:.6f})"
+                )
 
-        # If we find a better denormalized loss but not a better normalized loss
-        elif denorm_val_loss < best_denorm_val_loss:
-            best_denorm_val_loss = denorm_val_loss
-            # Log this event but don't save a new checkpoint
-            print(
-                f"New best denormalized loss at epoch {epoch}: {denorm_val_loss:.6f} (norm: {val_loss:.6f})"
-            )
+            # Save energy spectra plots for the best model (if enabled)
+            if wandb_config.get("plot_energy_spectra", False):
+                from ..visualization import save_spectra_plots
+
+                save_spectra_plots(
+                    model,
+                    val_loader,
+                    device,
+                    epoch,
+                    log_dir,
+                    num_samples=wandb_config.get("wandb_num_plots", 2),
+                )
 
         print("=" * 110)
         print("\n")

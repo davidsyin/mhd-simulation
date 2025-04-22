@@ -7,6 +7,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 
+from ..utils import (
+    get_dataset_normalizer,
+    identify_data_channels,
+    apply_denormalization,
+)
+
 
 def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samples=2):
     """Save prediction plots to disk
@@ -24,75 +30,22 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
     plots_dir = os.path.join(output_dir, "prediction_plots", f"epoch_{epoch}")
     os.makedirs(plots_dir, exist_ok=True)
 
-    has_dataset_normalizer = (
-        hasattr(val_loader.dataset, "normalizer")
-        and val_loader.dataset.normalizer is not None
-    )
-
-    if has_dataset_normalizer:
-        # Save original normalizer device to restore it later
-        original_normalizer_device = None
-        normalizer = val_loader.dataset.normalizer
-
-        # Record the original device of normalizer buffers
-        for name, buffer in normalizer.named_buffers():
-            original_normalizer_device = buffer.device
-            break
-
-        # Create a GPU copy rather than moving the original
-        if hasattr(normalizer, "to"):
-            normalizer = copy.deepcopy(normalizer).to(device)
-            # # Debug print
-            # print(
-            #     f"Using dataset-level {normalizer.__class__.__name__} to denormalize for visualization"
-            # )
-    else:
-        normalizer = None
-        # # Debug print
-        # print("No normalization found - visualizing raw data")
+    normalizer = get_dataset_normalizer(val_loader)
 
     with torch.no_grad():
         try:
             x, y = next(iter(val_loader))
             x, y = x.to(device), y.to(device)
 
-            has_grid_embeddings = x.shape[1] > y.shape[1]
-            data_channels = y.shape[1]  # Number of data channels (3 for u_x, u_y, A)
-
-            # # Debug print
-            # print(f"Input shape: {x.shape}, Output shape: {y.shape}")
-            # print(f"Detected grid embeddings: {has_grid_embeddings}")
-
-            if has_grid_embeddings:
-                data_channel_indices = list(
-                    range(x.shape[1] - data_channels, x.shape[1])
-                )
-                # # Debug print
-                # print(f"Using data channels from input: {data_channel_indices}")
-            else:
-                data_channel_indices = list(range(x.shape[1]))
+            data_channel_indices, has_grid_embeddings, data_channels = (
+                identify_data_channels(x, y)
+            )
 
             pred = model(x)
 
-            if normalizer is not None and hasattr(normalizer, "denormalize"):
-                if has_grid_embeddings:
-                    # For input tensor, we only want to denormalize the data channels, not the grid
-                    x_data_only = x[:, data_channel_indices]
-                    x_data_denorm = normalizer.denormalize(x_data_only)
-
-                    x_denorm = x.clone()
-                    x_denorm[:, data_channel_indices] = x_data_denorm
-                else:
-                    # If no grid embeddings, denormalize the whole input
-                    x_denorm = normalizer.denormalize(x)
-
-                y_denorm = normalizer.denormalize(y)
-                pred_denorm = normalizer.denormalize(pred)
-            else:
-                # If no normalizer is available, use the data as is
-                x_denorm = x
-                y_denorm = y
-                pred_denorm = pred
+            x_denorm, y_denorm, pred_denorm = apply_denormalization(
+                x, y, pred, normalizer, data_channel_indices, has_grid_embeddings
+            )
 
             x_np = x_denorm.cpu().numpy()
             y_np = y_denorm.cpu().numpy()
@@ -107,11 +60,7 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
 
                 # First column: initial conditions
                 for c in range(data_channels):
-                    if has_grid_embeddings:
-                        input_channel_idx = data_channel_indices[c]
-                        im = axes[c, 0].imshow(x_np[i, input_channel_idx, 0], cmap=cmap)
-                    else:
-                        im = axes[c, 0].imshow(x_np[i, c, 0], cmap=cmap)
+                    im = axes[c, 0].imshow(x_np[i, c, 0], cmap=cmap)
 
                     axes[c, 0].set_title(f"IC: {channel_names[c]}")
                     axes[c, 0].axis("off")

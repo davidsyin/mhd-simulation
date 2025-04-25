@@ -125,13 +125,16 @@ def train(config_path, data_path):
             train_params["load_ckpt"], model, optimizer, scheduler
         )
 
-        # Unpack checkpoint data - now returned as a dict
-        start_epoch = checkpoint_data["epoch"]
-        best_val_loss = checkpoint_data["loss"]
-        best_denorm_val_rel_l2 = checkpoint_data.get("denorm_loss_rel_l2", float("inf"))
-        best_denorm_val_mse = checkpoint_data.get("denorm_loss_mse", float("inf"))
+        # Unpack checkpoint data to continue the original training process
+        if not train_params.get("is_finetune"):
+            start_epoch = checkpoint_data["epoch"]
+            best_val_loss = checkpoint_data["loss"]
+            best_denorm_val_rel_l2 = checkpoint_data.get(
+                "denorm_loss_rel_l2", float("inf")
+            )
+            best_denorm_val_mse = checkpoint_data.get("denorm_loss_mse", float("inf"))
 
-        start_epoch += 1  # Start from the next epoch
+            start_epoch += 1  # Start from the next epoch
 
     # Make sure checkpoint directory exists
     os.makedirs(os.path.dirname(train_params["ckpt_path"]), exist_ok=True)

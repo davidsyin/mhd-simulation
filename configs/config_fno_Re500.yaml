@@ -141,7 +141,7 @@ optimizer_params:
   scheduler_type: "reducelr" # options: multistep, cosine, reducelr, dummy
   mode: "min"
   factor: 0.7
-  patience: 3
+  patience: 6
 
   # scheduler_type: "cosine"
   # T_max: 300
@@ -151,13 +151,14 @@ optimizer_params:
 ## Train params
 train_params:
   epochs: 100
-  ckpt_path: "checkpoints/model_Re500.pt"
-  load_ckpt: "" # Leave empty to start from scratch
+  ckpt_path: "/work/hdd/bdwx/skacmaz/checkpoints/model_Re500_physics_patient_finetuned.pt"
+  load_ckpt: "/projects/begd/skacmaz/FNO_checkpoints/ground-physicsnorm/model_Re100.pt" # Leave empty to start from scratch
+  is_finetune: True
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logsfno_Re500/"
+  wandb_dir: "/u/skacmaz/NODs/logsfno_Re500_physics_patient_finetuned/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_FNO3d"
   wandb_num_plots: 2

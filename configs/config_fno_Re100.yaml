@@ -14,7 +14,7 @@ model_params:
   dimension: 3
   latent_channels: 32 # aka fno_layer_size and fno_width
   num_fno_layers: 4 # n_layers in TFNO3d
-  num_fno_modes: 20
+  num_fno_modes: 8
   padding: [5, 0, 0]
   padding_type: "constant"
   activation_fn: "gelu"
@@ -29,13 +29,13 @@ model_params:
 ###################
 ## Normalization options at dataset level
 normalization_params:
-  type: "physics"
-  input_norm: [1.0, 1.0, 2.5e-4]
-  output_norm: [1.0, 1.0, 2.5e-4]
-  # stats_file: "/u/skacmaz/NODs/stats/train_only_stats.npz"
-  #
-  # type: "minmax"
-  # feature_range: [-1, 1]
+  # type: "physics"
+  # input_norm: [1.0, 1.0, 2.5e-4]
+  # output_norm: [1.0, 1.0, 2.5e-4]
+  stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re100.npz"
+
+  type: "minmax"
+  feature_range: [-1, 1]
 
   # type: "standard"
   # # mean: [0.0, 0.0, 0.0] # Uncomment if you want to use your own stats
@@ -151,13 +151,14 @@ optimizer_params:
 ## Train params
 train_params:
   epochs: 100
-  ckpt_path: "checkpoints/model_Re100.pt"
+  ckpt_path: "checkpoints/fno_Re100_8mod.pt"
   load_ckpt: "" # Leave empty to start from scratch
+  is_finetune: True
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logsfno_Re100/"
+  wandb_dir: "/u/skacmaz/NODs/logsfno_Re100_8mod/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_FNO3d"
   wandb_num_plots: 2

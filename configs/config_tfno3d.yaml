@@ -1,20 +1,23 @@
 ####################
 ## Model options
 model_params:
-  model_type: "fno"
-  model_variant: "3d" # optional
-  # width: 8 # hidden_channels in TFNO3d
-  # modes1: 8 # x dimension modes
-  # modes2: 8 # y dimension modes
-  # modes3: 8 # t dimension modes
+  model_type: "vanilla-fno"
+  # model_variant: "3d" # optional
+  # width: 32 # hidden_channels in TFNO3d
+  # modes1: 20 # x dimension modes
+  # modes2: 20 # y dimension modes
+  # modes3: 20 # t dimension modes
   # fc_dim: 256 # For lifting_channels and projection_channels
+  # in_dim: 6
+  # out_dim: 3
   in_channels: 6 # u_x, u_y, A
   out_channels: 3 # u_x, u_y, A
   decoder_layers: 1
   dimension: 3
   latent_channels: 32 # aka fno_layer_size and fno_width
   num_fno_layers: 4 # n_layers in TFNO3d
-  num_fno_modes: 20
+  num_fno_modes: 16
+  # modes: [0, 20]
   padding: [5, 0, 0]
   padding_type: "constant"
   activation_fn: "gelu"
@@ -22,7 +25,7 @@ model_params:
   # pad_x: 0.00 # padding ratio in x direction
   # pad_y: 0.00 # padding ratio in y direction
   # pad_z: 0.00 # padding ratio in t direction
-  # rank: 1000  # Tensor factorization rank (either a float in [0.0, 1.0] or an integer > 1)
+  # rank: 0.5  # Tensor factorization rank (either a float in [0.0, 1.0] or an integer > 1)
   # factorization: "cp"
   # positional_embedding: False
 
@@ -150,14 +153,15 @@ optimizer_params:
 ###################
 ## Train params
 train_params:
-  epochs: 7
-  ckpt_path: "checkpoints/model_test.pt"
+  epochs: 100
+  ckpt_path: "checkpoints/logsfno_vanilla_Re100_8mod"
   load_ckpt: "" # Leave empty to start from scratch
+  is_finetune: True
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logsfno_test/"
+  wandb_dir: "/u/skacmaz/NODs/logsfno_vanlla_Re100_8mod/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_FNO3d"
   wandb_num_plots: 2

@@ -118,14 +118,14 @@ optimizer_params:
 ## Train params
 train_params:
   epochs: 100
-  ckpt_path: "checkpoints/uno3d_model_fully_trained.pt"
+  ckpt_path: "checkpoints/uno3d_Re100.pt"
   load_ckpt: ""
   is_finetune: True
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logsuno_test_fully_trained/"
+  wandb_dir: "/u/skacmaz/NODs/logsuno_Re100/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_UNO3d"
   wandb_num_plots: 2

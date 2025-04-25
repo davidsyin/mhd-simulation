@@ -1,0 +1,134 @@
+####################
+## Model options
+model_params:
+  model_type: "uno"
+  model_variant: "3d"
+  in_channels: 6  # u_x, u_y, A
+  out_channels: 3  # u_x, u_y, A
+  dimension: 3
+  latent_channels: 32  # Hidden channels
+  num_uno_layers: 4  # Number of UNO layers
+  num_uno_modes: 8  # Number of modes in each dimension
+  lifting_channels: 256  # Lifting network width
+  projection_channels: 256  # Projection network width
+  activation_fn: "gelu"  # Activation function
+  coord_features: True  # Whether to use positional encoding
+  
+  # Skip connection configuration
+  fno_skip: "linear"
+  horizontal_skip: "linear"
+  channel_mlp_skip: "linear"
+  
+  # Optional: explicitly define layer structure
+  uno_out_channels: [32, 64, 64, 32]  # Channels per layer
+  uno_n_modes: [[8, 8, 8], [8, 8, 8], [8, 8, 8], [8, 8, 8]]  # Modes per layer
+  uno_scalings: [[1.0, 1.0, 1.0], [0.5, 0.5, 0.5], [2.0, 2.0, 2.0], [1.0, 1.0, 1.0]]  # Scaling per layer
+
+###################
+## Normalization options at dataset level
+normalization_params:
+  type: "physics"
+  input_norm: [1.0, 1.0, 2.5e-4]
+  output_norm: [1.0, 1.0, 2.5e-4]
+
+  # stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re100.npz"
+  #
+  # type: "minmax"
+  # feature_range: [-1, 1]
+
+  # type: "standard"
+  # # mean: [0.0, 0.0, 0.0] # Uncomment if you want to use your own stats
+  # # std: [1.13536170e-01, 1.04062743e-01, 6.62853878e-05] # Uncomment if you want to use your own stats
+
+dataset_params:
+  # data_dir : "/u/skacmaz/"
+  # data_file : "small_mhd_data.npy"
+  data_dir: "/projects/bbjo/skacmaz/NODs_mhd_data_Re100/"
+  data_file: "mhd_data_3channel_Re100.npy"
+  name: "MHD_UNO3d"
+  num: 1000
+  num_train: 950
+  num_test: 50
+  seed: 42
+  sub_t: 1
+  sub_x: 1
+
+###################
+## Loss options
+loss_params:
+  type: "physics-informed"
+  nu: 0.01
+  eta: 0.01
+  rho0: 1.0
+  data_weight: 5.0
+  ic_weight: 1.0
+  pde_weight: 1.0
+  constraint_weight: 10.0
+  use_data_loss: True
+  use_ic_loss: True
+  use_pde_loss: True
+  use_constraint_loss: True
+  u_weight: 1.0
+  v_weight: 1.0
+  A_weight: 1.0
+  Du_weight: 1.0
+  Dv_weight: 1.0
+  DA_weight: 1000000
+  div_B_weight: 1.0
+  div_vel_weight: 1.0
+  Lx: 1.0
+  Ly: 1.0
+  tend: 1.0
+  use_weighted_mean: False
+
+###################
+## Dataloader options
+train_loader_params:
+  batch_size: 1
+  shuffle: True
+  num_workers: 1
+  pin_memory: True
+
+val_loader_params:
+  batch_size: 1
+  shuffle: False
+  num_workers: 1
+  pin_memory: False
+
+test_loader_params:
+  batch_size: 1
+  shuffle: False
+  num_workers: 1
+  pin_memory: False
+
+###################
+## Optimizer options
+optimizer_params:
+  optimizer_type: "adamw"
+  lr: 5.0e-4
+  weight_decay: 1.0e-2
+  betas: [0.9, 0.999]
+  use_scheduler: True
+  scheduler_type: "reducelr"
+  mode: "min"
+  factor: 0.7
+  patience: 3
+
+###################
+## Train params
+train_params:
+  epochs: 100
+  ckpt_path: "checkpoints/uno3d_model_fully_trained.pt"
+  load_ckpt: ""
+  is_finetune: True
+
+###################
+## wandb params -- optional
+wandb_params:
+  wandb_dir: "/u/skacmaz/NODs/logsuno_test_fully_trained/"
+  wandb_project: "MHD_PINO"
+  wandb_group: "MHD_UNO3d"
+  wandb_num_plots: 2
+  wandb_plot_freq: 5
+
+  plot_energy_spectra: True

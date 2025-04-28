@@ -6,7 +6,7 @@
 #SBATCH --ntasks-per-node=1
 # #SBATCH --cpus-per-task=1
 #SBATCH --gpus=1                              # Number of GPUs to allocate
-#SBATCH --time=00:05:00
+#SBATCH --time=02:00:00
 #SBATCH --mem=240G
 #SBATCH --output=slurm_logs/mhd_no_train_%j.log
 #SBATCH --error=slurm_logs/mhd_no_train_%j.err
@@ -22,6 +22,6 @@ conda activate NODs_MI100
 # wandb login
 
 # Run test
-python ./run_trainig.py # --gpus 0,1,2
+python ./run_training.py # --gpus 0,1,2
 
 conda deactivate

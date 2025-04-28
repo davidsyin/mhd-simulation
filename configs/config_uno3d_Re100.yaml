@@ -7,7 +7,7 @@ model_params:
   out_channels: 3  # u_x, u_y, A
   dimension: 3
   latent_channels: 32  # Hidden channels
-  num_uno_layers: 4  # Number of UNO layers
+  num_uno_layers: 7  # Number of UNO layers
   num_uno_modes: 8  # Number of modes in each dimension
   lifting_channels: 256  # Lifting network width
   projection_channels: 256  # Projection network width
@@ -20,9 +20,21 @@ model_params:
   channel_mlp_skip: "linear"
   
   # Optional: explicitly define layer structure
-  uno_out_channels: [32, 64, 64, 32]  # Channels per layer
-  uno_n_modes: [[8, 8, 8], [8, 8, 8], [8, 8, 8], [8, 8, 8]]  # Modes per layer
-  uno_scalings: [[1.0, 1.0, 1.0], [0.5, 0.5, 0.5], [2.0, 2.0, 2.0], [1.0, 1.0, 1.0]]  # Scaling per layer
+  uno_out_channels: [32, 48, 64, 64, 64, 48, 32]  # Channels per layer
+  uno_n_modes: [[12, 12, 12], 
+                [12, 12, 12],
+                [12, 12, 12],
+                [12, 12, 12],
+                [12, 12, 12],
+                [12, 12, 12],
+                [12, 12, 12]]  # Modes per layer
+  uno_scalings: [[0.8, 0.8, 0.8], 
+                 [0.8, 0.8, 0.8], 
+                 [0.5, 0.5, 0.5],
+                 [1.0, 1.0, 1.0],
+                 [2.0, 2.0, 2.0],
+                 [1.25, 1.25, 1.25],
+                 [1.25, 1.25, 1.25]]  # Scaling per layer
 
 ###################
 ## Normalization options at dataset level
@@ -50,7 +62,7 @@ dataset_params:
   num_train: 950
   num_test: 50
   seed: 42
-  sub_t: 1
+  sub_t: 4
   sub_x: 1
 
 ###################
@@ -118,14 +130,14 @@ optimizer_params:
 ## Train params
 train_params:
   epochs: 100
-  ckpt_path: "checkpoints/uno3d_Re100.pt"
+  ckpt_path: "checkpoints/uno3d_Re100_deep.pt"
   load_ckpt: ""
   is_finetune: True
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logsuno_Re100/"
+  wandb_dir: "/u/skacmaz/NODs/logsuno_Re100_deep/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_UNO3d"
   wandb_num_plots: 2

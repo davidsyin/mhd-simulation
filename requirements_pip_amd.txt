@@ -3,6 +3,7 @@ blobfile
 einops
 matplotlib
 neuraloperator
+nvidia-physicsnemo
 packaging
 Pillow
 PyYAML

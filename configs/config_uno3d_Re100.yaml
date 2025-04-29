@@ -3,38 +3,52 @@
 model_params:
   model_type: "uno"
   model_variant: "3d"
-  in_channels: 6  # u_x, u_y, A
-  out_channels: 3  # u_x, u_y, A
+  in_channels: 6
+  out_channels: 3
   dimension: 3
-  latent_channels: 32  # Hidden channels
-  num_uno_layers: 7  # Number of UNO layers
-  num_uno_modes: 8  # Number of modes in each dimension
-  lifting_channels: 256  # Lifting network width
-  projection_channels: 256  # Projection network width
-  activation_fn: "gelu"  # Activation function
-  coord_features: False  # Whether to use positional encoding
+  latent_channels: 32
+  num_uno_layers: 7
+  lifting_channels: 256
+  projection_channels: 256
+  activation_fn: "gelu"
+  coord_features: False
   
-  # Skip connection configuration
+  # Skip connections
   fno_skip: "linear"
   horizontal_skip: "linear"
   channel_mlp_skip: "linear"
   
-  # Optional: explicitly define layer structure
-  uno_out_channels: [32, 48, 64, 64, 64, 48, 32]  # Channels per layer
-  uno_n_modes: [[12, 12, 12], 
+  # MLP parameters
+  channel_mlp_expansion: 1.0
+  channel_mlp_dropout: 0.1
+  
+  # Layer structure
+  uno_out_channels: [32, 64, 128, 192, 128, 64, 32]
+  uno_n_modes: [[8, 8, 8],
+                [10, 10, 10],
                 [12, 12, 12],
+                [16, 16, 16],
                 [12, 12, 12],
-                [12, 12, 12],
-                [12, 12, 12],
-                [12, 12, 12],
-                [12, 12, 12]]  # Modes per layer
-  uno_scalings: [[0.8, 0.8, 0.8], 
-                 [0.8, 0.8, 0.8], 
+                [10, 10, 10],
+                [8, 8, 8]]
+  uno_scalings: [[1.0, 1.0, 1.0],
+                 [0.5, 0.5, 0.5],
                  [0.5, 0.5, 0.5],
                  [1.0, 1.0, 1.0],
+                 [2.0, 2.0, 2.0], 
                  [2.0, 2.0, 2.0],
-                 [1.25, 1.25, 1.25],
-                 [1.25, 1.25, 1.25]]  # Scaling per layer
+                 [1.0, 1.0, 1.0]]
+  
+  # Boundary handling
+  domain_padding: 0.05
+  domain_padding_mode: "symmetric"
+  
+  # Optional tensor factorization
+  factorization: "cp"
+  rank: 0.5
+
+  # Adding normalization
+  norm: "instance_norm"
 
 ###################
 ## Normalization options at dataset level
@@ -62,7 +76,7 @@ dataset_params:
   num_train: 950
   num_test: 50
   seed: 42
-  sub_t: 2
+  sub_t: 4
   sub_x: 1
 
 ###################
@@ -130,14 +144,14 @@ optimizer_params:
 ## Train params
 train_params:
   epochs: 100
-  ckpt_path: "checkpoints/uno3d_Re100_deep_subt2.pt"
+  ckpt_path: "checkpoints/uno3d_Re100_deep_default.pt"
   load_ckpt: ""
   is_finetune: True
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logsuno_Re100_deep_subt2/"
+  wandb_dir: "/u/skacmaz/NODs/logsuno_Re100_deep_default/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_UNO3d"
   wandb_num_plots: 2

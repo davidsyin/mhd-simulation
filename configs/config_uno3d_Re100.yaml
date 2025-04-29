@@ -12,7 +12,7 @@ model_params:
   lifting_channels: 256  # Lifting network width
   projection_channels: 256  # Projection network width
   activation_fn: "gelu"  # Activation function
-  coord_features: True  # Whether to use positional encoding
+  coord_features: False  # Whether to use positional encoding
   
   # Skip connection configuration
   fno_skip: "linear"
@@ -62,7 +62,7 @@ dataset_params:
   num_train: 950
   num_test: 50
   seed: 42
-  sub_t: 4
+  sub_t: 2
   sub_x: 1
 
 ###################
@@ -130,14 +130,14 @@ optimizer_params:
 ## Train params
 train_params:
   epochs: 100
-  ckpt_path: "checkpoints/uno3d_Re100_deep.pt"
+  ckpt_path: "checkpoints/uno3d_Re100_deep_subt2.pt"
   load_ckpt: ""
   is_finetune: True
 
 ###################
 ## wandb params -- optional
 wandb_params:
-  wandb_dir: "/u/skacmaz/NODs/logsuno_Re100_deep/"
+  wandb_dir: "/u/skacmaz/NODs/logsuno_Re100_deep_subt2/"
   wandb_project: "MHD_PINO"
   wandb_group: "MHD_UNO3d"
   wandb_num_plots: 2

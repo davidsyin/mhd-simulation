@@ -12,7 +12,7 @@ model_params:
   lifting_channels: 256  # Lifting network width
   projection_channels: 256  # Projection network width
   activation_fn: "gelu"  # Activation function
-  coord_features: True  # Whether to use positional encoding
+  coord_features: False  # Whether to use positional encoding
   
   # Skip connection configuration
   fno_skip: "linear"

@@ -1,0 +1,168 @@
+####################
+## Model options
+model_params:
+  model_type: "fno"
+  model_variant: "3d" # optional
+  # width: 8 # hidden_channels in TFNO3d
+  # modes1: 8 # x dimension modes
+  # modes2: 8 # y dimension modes
+  # modes3: 8 # t dimension modes
+  # fc_dim: 256 # For lifting_channels and projection_channels
+  in_channels: 6 # u_x, u_y, A
+  out_channels: 3 # u_x, u_y, A
+  decoder_layers: 1
+  dimension: 3
+  latent_channels: 64 # aka fno_layer_size and fno_width
+  num_fno_layers: 12 # n_layers in TFNO3d
+  num_fno_modes: 16
+  padding: [5, 0, 0]
+  padding_type: "constant"
+  activation_fn: "gelu"
+  coord_features: False
+  # pad_x: 0.00 # padding ratio in x direction
+  # pad_y: 0.00 # padding ratio in y direction
+  # pad_z: 0.00 # padding ratio in t direction
+  # rank: 1000  # Tensor factorization rank (either a float in [0.0, 1.0] or an integer > 1)
+  # factorization: "cp"
+  # positional_embedding: False
+
+###################
+## Normalization options at dataset level
+normalization_params:
+  type: "physics"
+  input_norm: [1.0, 1.0, 2.5e-4]
+  output_norm: [1.0, 1.0, 2.5e-4]
+
+  # stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re100.npz"
+  #
+  # type: "minmax"
+  # feature_range: [-1, 1]
+  #
+  # type: "standard"
+  # # mean: [0.0, 0.0, 0.0] # Uncomment if you want to use your own stats
+  # # std: [1.13536170e-01, 1.04062743e-01, 6.62853878e-05] # Uncomment if you want to use your own stats
+
+###################
+## Dataset options
+dataset_params:
+  # data_dir : "/u/skacmaz/"
+  # data_file : "small_mhd_data.npy"
+  data_dir: "/projects/bbjo/skacmaz/NODs_mhd_data_Re100/"
+  data_file: "mhd_data_3channel_Re100.npy"
+  name: "MHD_TFNO3d"
+  num: 1000
+  num_train: 950
+  num_test: 50
+  seed: 42
+  sub_t: 1 # Subsampling factor for time dimension
+  sub_x: 1 # Subsampling factor for spatial dimensions
+
+###################
+## Loss options
+loss_params:
+  type: "physics-informed"
+  nu: 0.01
+  eta: 0.01
+  rho0: 1.0
+
+  data_weight: 5.0
+  ic_weight: 1.0
+  pde_weight: 1.0
+  constraint_weight: 10.0
+
+  use_data_loss: True
+  use_ic_loss: True
+  use_pde_loss: True
+  use_constraint_loss: True
+
+  u_weight: 1.0
+  v_weight: 1.0
+  A_weight: 1.0
+
+  Du_weight: 1.0
+  Dv_weight: 1.0
+  DA_weight: 1000000
+
+  div_B_weight: 1.0
+  div_vel_weight: 1.0
+
+  Lx: 1.0
+  Ly: 1.0
+  tend: 1.0
+
+  use_weighted_mean: False
+
+
+# loss_params:
+#   type: "mse"
+#   reduction: "mean"
+#
+# # Or a more complex example:
+# loss_params:
+#   type: "weighted_mse"
+#   weights: [1.0, 2.0, 0.5]  # Higher weight on second component
+#   reduction: "mean"
+#
+# # Physics-informed example:
+# loss_params:
+#   type: "physics_informed"
+#   data_loss_type: "mse"
+#   data_loss_weight: 1.0
+#   physics_loss_weight: 0.5
+
+###################
+## Dataloader options
+train_loader_params:
+  batch_size: 1
+  shuffle: True
+  num_workers: 1
+  pin_memory: True
+
+val_loader_params:
+  batch_size: 1
+  shuffle: False
+  num_workers: 1
+  pin_memory: False
+
+test_loader_params:
+  batch_size: 1
+  shuffle: False
+  num_workers: 1
+  pin_memory: False
+
+###################
+## Optimizer options
+optimizer_params:
+  optimizer_type: "adamw" # options: adam, adamw, sgd, lbfgs, lion, radam, adabelief, etc.
+  lr: 5.0e-4
+  weight_decay: 1.0e-2
+  betas: [0.9, 0.999]
+
+  use_scheduler: True
+  scheduler_type: "reducelr" # options: multistep, cosine, reducelr, dummy
+  mode: "min"
+  factor: 0.7
+  patience: 3
+
+  # scheduler_type: "cosine"
+  # T_max: 300
+  # eta_min: 1.0e-6
+
+###################
+## Train params
+train_params:
+  epochs: 100
+  ckpt_path: "checkpoints/fno_Re100_16mod_12layer_width64.pt"
+  load_ckpt: "" # Leave empty to start from scratch
+  is_finetune: True
+
+###################
+## wandb params -- optional
+wandb_params:
+  wandb_dir: "/u/skacmaz/NODs/logsfno_Re100_16mod_12layer_width64/"
+  wandb_project: "MHD_PINO"
+  wandb_group: "MHD_FNO3d"
+  wandb_num_plots: 2
+  wandb_plot_freq: 5
+
+  plot_energy_spectra: True     # Enable energy spectra plotting

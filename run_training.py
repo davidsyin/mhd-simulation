@@ -3,11 +3,11 @@ import argparse
 import torch
 
 from src.utils.config import load_config
-from src.training import train
+from src.training import train_neural_operator, train_diffusion
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Train TFNO3d model for MHD simulation"
+        description="Train TFNO3d model for MHD simulation or diffusion model"
     )
     parser.add_argument(
         "--config",
@@ -47,4 +47,10 @@ if __name__ == "__main__":
     for key, value in config["model_params"].items():
         print(f"{key}: {value}")
 
-    train(args.config, args.data)
+    # Check if this is a diffusion model or neural operator based on config
+    if config.get("model_type", "neural_operator") == "diffusion":
+        print("\nTraining Diffusion Model...")
+        train_diffusion(args.config, args.data)
+    else:
+        print("\nTraining Neural Operator...")
+        train_neural_operator(args.config, args.data)

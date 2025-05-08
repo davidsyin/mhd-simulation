@@ -58,7 +58,7 @@ class DiffusionDataset(Dataset):
 
             # Apply target normalization
             self.targets = self.target_normalizer.normalize(targets_tensor)
-            print(f"Applied target normalization to all channels")
+            print(f"Applied target normalization to all channels\n")
 
         # Then prepare data (reshape and select channels)
         if config:
@@ -85,12 +85,11 @@ class DiffusionDataset(Dataset):
             # Calculate std for this channel across all other dimensions
             channel_std = targets[:, c].std().item()
             channel_stds.append(channel_std)
-            print(f"Channel {c} standard deviation: {channel_std:.6f}")
 
         # Use mean of all channel stds as sigma_data
         sigma_data = float(torch.tensor(channel_stds).mean().item())
         print(
-            f"Setting sigma_data={sigma_data} based on mean of standard deviations from normalized targets"
+            f"Setting sigma_data={sigma_data} based on mean of standard deviations from normalized targets\n"
         )
 
         # Update config
@@ -118,14 +117,14 @@ class DiffusionDataset(Dataset):
         if channel_indices is not None:
             if isinstance(channel_indices, int):
                 # If channel_indices is an int, make sure out_channels is 1
-                assert out_channels == 1, (
-                    f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
-                )
+                assert (
+                    out_channels == 1
+                ), f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
             else:
                 # If channel_indices is a list, make sure its length matches out_channels
-                assert len(channel_indices) == out_channels, (
-                    f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
-                )
+                assert (
+                    len(channel_indices) == out_channels
+                ), f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
 
         # Get spatial dimensions from data
         nx = x.shape[3] if len(x.shape) > 3 else 128
@@ -222,10 +221,10 @@ def get_diffusion_dataloaders(config, num_workers=4):
         if inputs_stats_file and inputs_stats_file.endswith(".npz"):
             if not os.path.exists(inputs_stats_file):
                 raise FileNotFoundError(
-                    f"Input statistics file not found: {inputs_stats_file}"
+                    f"\nInput statistics file not found: {inputs_stats_file}"
                 )
 
-            print(f"Loading input normalization statistics from {inputs_stats_file}")
+            print(f"\nLoading input normalization statistics from {inputs_stats_file}")
             input_stats = np.load(inputs_stats_file)
 
             # Create a copy of norm_params for input-specific normalization
@@ -244,13 +243,13 @@ def get_diffusion_dataloaders(config, num_workers=4):
             input_normalizer = create_normalization(
                 {"normalization_params": input_norm_params}
             )
-            print(f"Created {norm_type} normalizer for inputs")
+            print(f"Created {norm_type} normalizer for inputs\n")
 
         # Create target normalizer
         if targets_stats_file and targets_stats_file.endswith(".npz"):
             if not os.path.exists(targets_stats_file):
                 raise FileNotFoundError(
-                    f"Target statistics file not found: {targets_stats_file}"
+                    f"\nTarget statistics file not found: {targets_stats_file}"
                 )
 
             print(f"Loading target normalization statistics from {targets_stats_file}")
@@ -272,7 +271,7 @@ def get_diffusion_dataloaders(config, num_workers=4):
             target_normalizer = create_normalization(
                 {"normalization_params": target_norm_params}
             )
-            print(f"Created {norm_type} normalizer for targets")
+            print(f"Created {norm_type} normalizer for targets\n")
 
         if not input_normalizer and not target_normalizer:
             print("\n***WARNING: No valid stats files found for normalization!***\n")

@@ -64,7 +64,7 @@ def train(config_path, data_path=None):
     train_loader, val_loader, test_loader = get_diffusion_dataloaders(
         config, num_workers=config.get("train_loader_params", {}).get("num_workers", 4)
     )
-    print(f"Dataloaders created in {time.time() - start_time:.2f} seconds\n")
+    print(f"\nDataloaders created in {time.time() - start_time:.2f} seconds\n")
 
     # Print data shapes from first batch for debugging
     if train_loader:

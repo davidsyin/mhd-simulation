@@ -32,13 +32,7 @@ class DiffusionDataset(Dataset):
         print(f"Original {split_name} input shape: {self.inputs.shape}")
         print(f"Original {split_name} target shape: {self.targets.shape}")
 
-        # Apply data preparation
-        if config:
-            self.inputs, self.targets = self.prepare_diffusion_input(
-                self.inputs, self.targets, config
-            )
-
-        # Create normalization
+        # Create normalization first (before preparing diffusion input)
         if config and "normalization_params" in config:
             self.normalizer = create_normalization(config)
             print(
@@ -46,6 +40,45 @@ class DiffusionDataset(Dataset):
             )
         else:
             self.normalizer = None
+
+        # Apply data preparation
+        if config:
+            self.inputs, self.targets = self.prepare_diffusion_input(
+                self.inputs, self.targets, config
+            )
+
+            # Calculate sigma_data from normalized training targets if this is the training set
+            if split_name == "train" and "model_params" in config:
+                self.calculate_sigma_data(config)
+
+    def calculate_sigma_data(self, config):
+        """Calculate sigma_data from normalized training targets for the selected channels"""
+        if not hasattr(self, "targets") or self.targets is None:
+            return
+
+        # We can use targets directly as they're already normalized by prepare_diffusion_input
+        targets = self.targets
+
+        # Calculate standard deviation
+        # For each channel, calculate std across all samples, spatial dimensions
+        channel_stds = []
+
+        for c in range(targets.shape[1]):  # Iterate over channels
+            # Calculate std for this channel across all other dimensions
+            channel_std = torch.tensor(targets[:, c]).std().item()
+            channel_stds.append(channel_std)
+            print(f"Channel {c} standard deviation: {channel_std:.6f}")
+
+        # Use mean of all channel stds as sigma_data
+        sigma_data = float(np.mean(channel_stds))
+        print(
+            f"Setting sigma_data={sigma_data} based on mean of standard deviations from normalized targets"
+        )
+
+        # Update config
+        config["model_params"]["sigma_data"] = sigma_data
+
+        return sigma_data
 
     def prepare_diffusion_input(self, x, y, config):
         """Prepare input data for diffusion model by reshaping from
@@ -61,6 +94,19 @@ class DiffusionDataset(Dataset):
         # Get channel indices to use (if specified)
         # Can be a single index (int) or a list of indices
         channel_indices = dataset_params.get("channel_indices", None)
+
+        # Assert proper relationship between out_channels and channel_indices
+        if channel_indices is not None:
+            if isinstance(channel_indices, int):
+                # If channel_indices is an int, make sure out_channels is 1
+                assert out_channels == 1, (
+                    f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
+                )
+            else:
+                # If channel_indices is a list, make sure its length matches out_channels
+                assert len(channel_indices) == out_channels, (
+                    f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
+                )
 
         # Get spatial dimensions from data
         nx = x.shape[3] if len(x.shape) > 3 else 128
@@ -107,6 +153,11 @@ class DiffusionDataset(Dataset):
             x_processed = x
             y_processed = y
 
+        # Apply normalization to the processed data (after channel selection)
+        if self.normalizer:
+            x_processed = self.normalizer.normalize(torch.tensor(x_processed)).numpy()
+            y_processed = self.normalizer.normalize(torch.tensor(y_processed)).numpy()
+
         print(f"Prepared {self.split_name} input shape: {x_processed.shape}")
         print(f"Prepared {self.split_name} target shape: {y_processed.shape}")
 
@@ -126,15 +177,7 @@ class DiffusionDataset(Dataset):
         if not isinstance(y, torch.Tensor):
             y = torch.tensor(y, dtype=torch.float32)
 
-        # Apply normalization if available
-        if self.normalizer:
-            # Make sure normalizer is on the same device as the data
-            if hasattr(self.normalizer, "to"):
-                data_device = x.device
-                self.normalizer = self.normalizer.to(data_device)
-
-            x = self.normalizer.normalize(x)
-            y = self.normalizer.normalize(y)
+        # No normalization here - it has already been applied during prepare_diffusion_input
 
         return x, y
 
@@ -173,17 +216,9 @@ def get_diffusion_dataloaders(config, num_workers=4):
             # Update the config with the loaded stats
             config["normalization_params"] = norm_params_copy
 
-            # Set sigma_data from std in the stats file
-            if "std" in stats.files and "model_params" in config:
-                std_values = stats["std"]
+            # Note: We no longer set sigma_data here from stats file
+            # It will be calculated correctly in the DiffusionDataset after normalization
 
-                if isinstance(std_values, (list, np.ndarray)) and len(std_values) > 0:
-                    # Use mean of all channel stds
-                    sigma_data = float(np.mean(std_values))
-                    print(
-                        f"Setting sigma_data={sigma_data} based on mean of standard deviations from stats file"
-                    )
-                    config["model_params"]["sigma_data"] = sigma_data
         else:
             print(
                 "\n***WARNING: Using normalization parameters directly from config file!***\n"
@@ -201,7 +236,7 @@ def get_diffusion_dataloaders(config, num_workers=4):
     # Get batch sizes
     batch_size = config.get("train_loader_params", {}).get("batch_size", 32)
 
-    # Create datasets
+    # Create datasets - create train first to calculate sigma_data
     print(f"Creating training dataset from {train_path}")
     train_dataset = DiffusionDataset(train_path, config=config, split_name="train")
 

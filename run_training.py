@@ -48,7 +48,7 @@ if __name__ == "__main__":
         print(f"{key}: {value}")
 
     # Check if this is a diffusion model or neural operator based on config
-    if config.get("config_type", "neural_operator") == "diffusion":
+    if config.get("config_type", "diffusion") == "diffusion":
         print("\nTraining Diffusion Model...")
         train_diffusion(args.config, args.data)
     else:

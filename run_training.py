@@ -38,17 +38,26 @@ if __name__ == "__main__":
             f"Available memory: {torch.cuda.get_device_properties(0).total_memory / 1e9:.2f} GB"
         )
     config = load_config(args.config)
+
+    # Handle data paths differently based on config type
     if args.data is None:
-        args.data = (
-            config["dataset_params"]["data_dir"] + config["dataset_params"]["data_file"]
-        )
+        # For neural operator configuration
+        if config.get("config_type", "") != "diffusion":
+            if (
+                "data_dir" in config["dataset_params"]
+                and "data_file" in config["dataset_params"]
+            ):
+                args.data = (
+                    config["dataset_params"]["data_dir"]
+                    + config["dataset_params"]["data_file"]
+                )
+        # For diffusion configuration, we keep args.data as None since the paths are in the config
 
     print("\nModel Configuration:")
     for key, value in config["model_params"].items():
         print(f"{key}: {value}")
 
-    # Check if this is a diffusion model or neural operator based on config
-    if config.get("config_type", "diffusion") == "diffusion":
+    if config.get("config_type", "") == "diffusion":
         print("\nTraining Diffusion Model...")
         train_diffusion(args.config, args.data)
     else:

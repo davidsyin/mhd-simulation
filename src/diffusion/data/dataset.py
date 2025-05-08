@@ -49,7 +49,7 @@ class DiffusionDataset(Dataset):
             inputs_tensor = torch.tensor(self.inputs, dtype=torch.float32)
 
             # Apply input normalization
-            self.inputs = self.input_normalizer.normalize(inputs_tensor).numpy()
+            self.inputs = self.input_normalizer.normalize(inputs_tensor)
             print(f"Applied input normalization to all channels")
 
         if self.target_normalizer:
@@ -57,7 +57,7 @@ class DiffusionDataset(Dataset):
             targets_tensor = torch.tensor(self.targets, dtype=torch.float32)
 
             # Apply target normalization
-            self.targets = self.target_normalizer.normalize(targets_tensor).numpy()
+            self.targets = self.target_normalizer.normalize(targets_tensor)
             print(f"Applied target normalization to all channels")
 
         # Then prepare data (reshape and select channels)
@@ -76,7 +76,8 @@ class DiffusionDataset(Dataset):
             return
 
         # Calculate standard deviation
-        targets = torch.tensor(self.targets, dtype=torch.float32)
+        # Convert targets to PyTorch tensor if they are not already
+        targets = self.targets
 
         # Calculate standard deviation for each channel
         channel_stds = []
@@ -87,7 +88,7 @@ class DiffusionDataset(Dataset):
             print(f"Channel {c} standard deviation: {channel_std:.6f}")
 
         # Use mean of all channel stds as sigma_data
-        sigma_data = float(np.mean(channel_stds))
+        sigma_data = float(torch.tensor(channel_stds).mean().item())
         print(
             f"Setting sigma_data={sigma_data} based on mean of standard deviations from normalized targets"
         )
@@ -117,14 +118,14 @@ class DiffusionDataset(Dataset):
         if channel_indices is not None:
             if isinstance(channel_indices, int):
                 # If channel_indices is an int, make sure out_channels is 1
-                assert (
-                    out_channels == 1
-                ), f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
+                assert out_channels == 1, (
+                    f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
+                )
             else:
                 # If channel_indices is a list, make sure its length matches out_channels
-                assert (
-                    len(channel_indices) == out_channels
-                ), f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
+                assert len(channel_indices) == out_channels, (
+                    f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
+                )
 
         # Get spatial dimensions from data
         nx = x.shape[3] if len(x.shape) > 3 else 128
@@ -138,8 +139,8 @@ class DiffusionDataset(Dataset):
             nsamples, in_channels, timesteps, nx, ny = x.shape
 
             # Reshape to (nsamples*t, c, nx, ny)
-            x_reshaped = x.transpose(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
-            y_reshaped = y.transpose(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
+            x_reshaped = x.permute(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
+            y_reshaped = y.permute(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
 
             # Handle channel selection
             if channel_indices is not None:

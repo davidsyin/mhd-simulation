@@ -1,3 +1,5 @@
+config_type: "diffusion"
+
 ####################
 ## Model options
 model_params:

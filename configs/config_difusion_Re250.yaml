@@ -39,7 +39,8 @@ model_params:
 normalization_params:
   type: "minmax"
   feature_range: [0, 1]
-  stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re250.npz"
+  inputs_stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re250.npz"
+  targets_stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re250.npz"
 
 ###################
 ## Dataset options

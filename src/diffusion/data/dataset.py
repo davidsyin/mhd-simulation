@@ -8,17 +8,28 @@ from ...normalizations import create_normalization
 class DiffusionDataset(Dataset):
     """Dataset for training diffusion models"""
 
-    def __init__(self, data_path, config=None, split_name="train"):
+    def __init__(
+        self,
+        data_path,
+        config=None,
+        input_normalizer=None,
+        target_normalizer=None,
+        split_name="train",
+    ):
         """
         Args:
             data_path: Path to the data file
             config: Configuration for preprocessing
+            input_normalizer: Normalizer for input data
+            target_normalizer: Normalizer for target data
             split_name: Name of the split for logging ("train", "val", "test")
         """
         super().__init__()
         self.data_path = data_path
         self.config = config
         self.split_name = split_name
+        self.input_normalizer = input_normalizer
+        self.target_normalizer = target_normalizer
 
         print(f"Loading {split_name} data from {data_path}")
         # Load data
@@ -32,26 +43,22 @@ class DiffusionDataset(Dataset):
         print(f"Original {split_name} input shape: {self.inputs.shape}")
         print(f"Original {split_name} target shape: {self.targets.shape}")
 
-        # Create normalization objects
-        if config and "normalization_params" in config:
-            self.normalizer = create_normalization(config)
-            print(
-                f"Using {config['normalization_params']['type']} normalization for {split_name} data"
-            )
-        else:
-            self.normalizer = None
-
         # Apply normalization to all channels first
-        if self.normalizer:
+        if self.input_normalizer:
             # Convert to tensors for normalization
             inputs_tensor = torch.tensor(self.inputs, dtype=torch.float32)
+
+            # Apply input normalization
+            self.inputs = self.input_normalizer.normalize(inputs_tensor).numpy()
+            print(f"Applied input normalization to all channels")
+
+        if self.target_normalizer:
+            # Convert to tensors for normalization
             targets_tensor = torch.tensor(self.targets, dtype=torch.float32)
 
-            # Apply normalization
-            self.inputs = self.normalizer.normalize(inputs_tensor).numpy()
-            self.targets = self.normalizer.normalize(targets_tensor).numpy()
-
-            print(f"Applied normalization to all channels")
+            # Apply target normalization
+            self.targets = self.target_normalizer.normalize(targets_tensor).numpy()
+            print(f"Applied target normalization to all channels")
 
         # Then prepare data (reshape and select channels)
         if config:
@@ -189,34 +196,85 @@ def get_diffusion_dataloaders(config, num_workers=4):
     Returns:
         train_loader, val_loader, test_loader
     """
-    # Process normalization config and load NPZ stats if needed
+    # Process normalization configs and load NPZ stats if needed
+    input_normalizer = None
+    target_normalizer = None
+
     if "normalization_params" in config:
-        norm_params = config["normalization_params"]
+        norm_params = config.get("normalization_params", {})
+        norm_type = norm_params.get("type", "identity").lower()
 
-        if "stats_file" in norm_params and norm_params["stats_file"].endswith(".npz"):
-            stats_file = norm_params["stats_file"]
-            if not os.path.exists(stats_file):
-                raise FileNotFoundError(f"Statistics file not found: {stats_file}")
+        # Get stats file paths
+        inputs_stats_file = norm_params.get("inputs_stats_file")
+        targets_stats_file = norm_params.get("targets_stats_file")
 
-            print(f"Loading normalization statistics from {stats_file}")
-            stats = np.load(stats_file)
+        # For backward compatibility, use the original stats_file if specific ones aren't provided
+        if (
+            not inputs_stats_file
+            and not targets_stats_file
+            and "stats_file" in norm_params
+        ):
+            inputs_stats_file = norm_params["stats_file"]
+            targets_stats_file = norm_params["stats_file"]
 
-            # Create a copy of the config to avoid modifying the original
-            norm_params_copy = norm_params.copy()
-
-            for key in stats.files:
-                norm_params_copy[key] = (
-                    stats[key].tolist() if hasattr(stats[key], "tolist") else stats[key]
+        # Create input normalizer
+        if inputs_stats_file and inputs_stats_file.endswith(".npz"):
+            if not os.path.exists(inputs_stats_file):
+                raise FileNotFoundError(
+                    f"Input statistics file not found: {inputs_stats_file}"
                 )
-                print(f"{key}: {stats[key]}")
 
-            # Update the config with the loaded stats
-            config["normalization_params"] = norm_params_copy
+            print(f"Loading input normalization statistics from {inputs_stats_file}")
+            input_stats = np.load(inputs_stats_file)
 
-        else:
-            print(
-                "\n***WARNING: Using normalization parameters directly from config file!***\n"
+            # Create a copy of norm_params for input-specific normalization
+            input_norm_params = norm_params.copy()
+
+            # Update with input stats
+            for key in input_stats.files:
+                input_norm_params[key] = (
+                    input_stats[key].tolist()
+                    if hasattr(input_stats[key], "tolist")
+                    else input_stats[key]
+                )
+                print(f"Input {key}: {input_stats[key]}")
+
+            # Create input normalizer
+            input_normalizer = create_normalization(
+                {"normalization_params": input_norm_params}
             )
+            print(f"Created {norm_type} normalizer for inputs")
+
+        # Create target normalizer
+        if targets_stats_file and targets_stats_file.endswith(".npz"):
+            if not os.path.exists(targets_stats_file):
+                raise FileNotFoundError(
+                    f"Target statistics file not found: {targets_stats_file}"
+                )
+
+            print(f"Loading target normalization statistics from {targets_stats_file}")
+            target_stats = np.load(targets_stats_file)
+
+            # Create a copy of norm_params for target-specific normalization
+            target_norm_params = norm_params.copy()
+
+            # Update with target stats
+            for key in target_stats.files:
+                target_norm_params[key] = (
+                    target_stats[key].tolist()
+                    if hasattr(target_stats[key], "tolist")
+                    else target_stats[key]
+                )
+                print(f"Target {key}: {target_stats[key]}")
+
+            # Create target normalizer
+            target_normalizer = create_normalization(
+                {"normalization_params": target_norm_params}
+            )
+            print(f"Created {norm_type} normalizer for targets")
+
+        if not input_normalizer and not target_normalizer:
+            print("\n***WARNING: No valid stats files found for normalization!***\n")
 
     # Get data paths from config
     dataset_params = config.get("dataset_params", {})
@@ -232,17 +290,35 @@ def get_diffusion_dataloaders(config, num_workers=4):
 
     # Create datasets - create train first to calculate sigma_data
     print(f"Creating training dataset from {train_path}")
-    train_dataset = DiffusionDataset(train_path, config=config, split_name="train")
+    train_dataset = DiffusionDataset(
+        train_path,
+        config=config,
+        input_normalizer=input_normalizer,
+        target_normalizer=target_normalizer,
+        split_name="train",
+    )
 
     val_dataset = None
     if val_path:
         print(f"Creating validation dataset from {val_path}")
-        val_dataset = DiffusionDataset(val_path, config=config, split_name="validation")
+        val_dataset = DiffusionDataset(
+            val_path,
+            config=config,
+            input_normalizer=input_normalizer,
+            target_normalizer=target_normalizer,
+            split_name="validation",
+        )
 
     test_dataset = None
     if test_path:
         print(f"Creating test dataset from {test_path}")
-        test_dataset = DiffusionDataset(test_path, config=config, split_name="test")
+        test_dataset = DiffusionDataset(
+            test_path,
+            config=config,
+            input_normalizer=input_normalizer,
+            target_normalizer=target_normalizer,
+            split_name="test",
+        )
 
     # Create dataloaders
     train_loader = DataLoader(

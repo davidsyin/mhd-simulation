@@ -8,18 +8,16 @@ from ...normalizations import create_normalization
 class DiffusionDataset(Dataset):
     """Dataset for training diffusion models"""
 
-    def __init__(self, data_path, config=None, transform=None, split_name="train"):
+    def __init__(self, data_path, config=None, split_name="train"):
         """
         Args:
             data_path: Path to the data file
             config: Configuration for preprocessing
-            transform: Additional transforms to apply
             split_name: Name of the split for logging ("train", "val", "test")
         """
         super().__init__()
         self.data_path = data_path
         self.config = config
-        self.transform = transform
         self.split_name = split_name
 
         print(f"Loading {split_name} data from {data_path}")
@@ -34,9 +32,9 @@ class DiffusionDataset(Dataset):
         print(f"Original {split_name} input shape: {self.inputs.shape}")
         print(f"Original {split_name} target shape: {self.targets.shape}")
 
-        # Apply preprocessing
+        # Apply data preparation
         if config:
-            self.inputs, self.targets = self.preprocess(
+            self.inputs, self.targets = self.prepare_diffusion_input(
                 self.inputs, self.targets, config
             )
 
@@ -49,48 +47,68 @@ class DiffusionDataset(Dataset):
         else:
             self.normalizer = None
 
-    def preprocess(self, x, y, config):
-        """Apply preprocessing for diffusion model data"""
+    def prepare_diffusion_input(self, x, y, config):
+        """Prepare input data for diffusion model by reshaping from
+        (nsamples, c=3, t, x, y) to (nsamples*t, c={1,2,3}, x, y)
+        """
         # Get parameters from config
+        model_params = config.get("model_params", {})
         dataset_params = config.get("dataset_params", {})
-        lb = dataset_params.get("lb", 1)
-        lf = dataset_params.get("lf", 1)
+
+        # Get number of channels from model config
+        out_channels = model_params.get("channels", 3)
+
+        # Get channel indices to use (if specified)
+        # Can be a single index (int) or a list of indices
+        channel_indices = dataset_params.get("channel_indices", None)
 
         # Get spatial dimensions from data
-        nx = x.shape[3] if len(x.shape) > 3 else dataset_params.get("nx", 128)
-        ny = x.shape[4] if len(x.shape) > 4 else dataset_params.get("ny", 128)
+        nx = x.shape[3] if len(x.shape) > 3 else 128
+        ny = x.shape[4] if len(x.shape) > 4 else 128
 
-        print(f"Processing with lb={lb}, lf={lf}, nx={nx}, ny={ny}")
+        print(f"Preparing data with output channels={out_channels}")
+        if channel_indices is not None:
+            print(f"Using channel indices {channel_indices}")
 
-        # Apply sliding window view for temporal data if needed
-        if (
-            dataset_params.get("use_sliding_window", False)
-            and len(x.shape) > 2
-            and x.shape[2] > lb
-        ):
-            print("Applying sliding window preprocessing...")
-            from numpy.lib.stride_tricks import sliding_window_view
+        if len(x.shape) == 5:  # (nsamples, c, t, nx, ny)
+            nsamples, in_channels, timesteps, nx, ny = x.shape
 
-            # Apply sliding window to the time dimension (axis=2)
-            # For data of shape (nsamples, channels, timesteps, nx, ny)
-            x_processed = (
-                sliding_window_view(x[:, :, lb - 1 :, :, :], window_shape=lf, axis=2)
-                .transpose(0, 1, 2, 5, 3, 4)
-                .reshape(-1, x.shape[1], lf, nx, ny)
-            )
+            # Reshape to (nsamples*t, c, nx, ny)
+            x_reshaped = x.transpose(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
+            y_reshaped = y.transpose(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
 
-            y_processed = (
-                sliding_window_view(y[:, :, lb - 1 :, :, :], window_shape=lf, axis=2)
-                .transpose(0, 1, 2, 5, 3, 4)
-                .reshape(-1, y.shape[1], lf, nx, ny)
-            )
+            # Handle channel selection
+            if channel_indices is not None:
+                # Convert to list if it's a single integer
+                if isinstance(channel_indices, int):
+                    channel_indices = [channel_indices]
+
+                # Extract the specified channels
+                x_processed = x_reshaped[:, channel_indices, :, :]
+                y_processed = y_reshaped[:, channel_indices, :, :]
+
+                # Check if the selected channels match the expected output channels
+                if len(channel_indices) != out_channels:
+                    print(
+                        f"WARNING: Number of selected channels ({len(channel_indices)}) "
+                        f"doesn't match model channels ({out_channels})"
+                    )
+            else:
+                # If no specific channels are selected
+                if out_channels < in_channels:
+                    # By default, take the first 'out_channels' channels
+                    x_processed = x_reshaped[:, :out_channels, :, :]
+                    y_processed = y_reshaped[:, :out_channels, :, :]
+                else:
+                    x_processed = x_reshaped
+                    y_processed = y_reshaped
         else:
-            # If no sliding window, just use the data as is
+            # If already in correct format, just pass through
             x_processed = x
             y_processed = y
 
-        print(f"Preprocessed {self.split_name} input shape: {x_processed.shape}")
-        print(f"Preprocessed {self.split_name} target shape: {y_processed.shape}")
+        print(f"Prepared {self.split_name} input shape: {x_processed.shape}")
+        print(f"Prepared {self.split_name} target shape: {y_processed.shape}")
 
         return x_processed, y_processed
 
@@ -117,10 +135,6 @@ class DiffusionDataset(Dataset):
 
             x = self.normalizer.normalize(x)
             y = self.normalizer.normalize(y)
-
-        # Apply additional transforms
-        if self.transform:
-            x, y = self.transform(x, y)
 
         return x, y
 

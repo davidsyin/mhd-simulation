@@ -6,7 +6,7 @@ model_params:
   # UNet parameters
   base_dim: 64
   dim_mults: [1, 2, 4, 8, 8]
-  channels: 3
+  channels: 2  # Updated to match the number of selected channels (0 and 2)
   self_condition: True
   learned_variance: False
   learned_sinusoidal_cond: False
@@ -38,7 +38,7 @@ model_params:
 ## Normalization options at dataset level
 normalization_params:
   type: "minmax"
-  feature_range: [-1, 1]
+  feature_range: [0, 1]
   stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re250.npz"
 
 ###################
@@ -47,9 +47,7 @@ dataset_params:
   train_path: "/projects/begd/skacmaz/NODs_diffusion_data/Re250/train.npy"
   val_path: "/projects/begd/skacmaz/NODs_diffusion_data/Re250/val.npy"
   test_path: "/projects/begd/skacmaz/NODs_diffusion_data/Re250/test.npy"
-  use_sliding_window: True
-  lb: 1
-  lf: 1
+  channel_indices: 2    # Can be a list of channel indices
 
 ###################
 ## Dataloader options

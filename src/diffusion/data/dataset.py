@@ -32,7 +32,7 @@ class DiffusionDataset(Dataset):
         print(f"Original {split_name} input shape: {self.inputs.shape}")
         print(f"Original {split_name} target shape: {self.targets.shape}")
 
-        # Create normalization first (before preparing diffusion input)
+        # Create normalization objects
         if config and "normalization_params" in config:
             self.normalizer = create_normalization(config)
             print(
@@ -41,13 +41,25 @@ class DiffusionDataset(Dataset):
         else:
             self.normalizer = None
 
-        # Apply data preparation
+        # Apply normalization to all channels first
+        if self.normalizer:
+            # Convert to tensors for normalization
+            inputs_tensor = torch.tensor(self.inputs, dtype=torch.float32)
+            targets_tensor = torch.tensor(self.targets, dtype=torch.float32)
+
+            # Apply normalization
+            self.inputs = self.normalizer.normalize(inputs_tensor).numpy()
+            self.targets = self.normalizer.normalize(targets_tensor).numpy()
+
+            print(f"Applied normalization to all channels")
+
+        # Then prepare data (reshape and select channels)
         if config:
             self.inputs, self.targets = self.prepare_diffusion_input(
                 self.inputs, self.targets, config
             )
 
-            # Calculate sigma_data from normalized training targets if this is the training set
+            # Calculate sigma_data from normalized targets if this is the training set
             if split_name == "train" and "model_params" in config:
                 self.calculate_sigma_data(config)
 
@@ -56,16 +68,14 @@ class DiffusionDataset(Dataset):
         if not hasattr(self, "targets") or self.targets is None:
             return
 
-        # We can use targets directly as they're already normalized by prepare_diffusion_input
-        targets = self.targets
-
         # Calculate standard deviation
-        # For each channel, calculate std across all samples, spatial dimensions
-        channel_stds = []
+        targets = torch.tensor(self.targets, dtype=torch.float32)
 
+        # Calculate standard deviation for each channel
+        channel_stds = []
         for c in range(targets.shape[1]):  # Iterate over channels
             # Calculate std for this channel across all other dimensions
-            channel_std = torch.tensor(targets[:, c]).std().item()
+            channel_std = targets[:, c].std().item()
             channel_stds.append(channel_std)
             print(f"Channel {c} standard deviation: {channel_std:.6f}")
 
@@ -83,6 +93,8 @@ class DiffusionDataset(Dataset):
     def prepare_diffusion_input(self, x, y, config):
         """Prepare input data for diffusion model by reshaping from
         (nsamples, c=3, t, x, y) to (nsamples*t, c={1,2,3}, x, y)
+
+        Note: This function expects already normalized data
         """
         # Get parameters from config
         model_params = config.get("model_params", {})
@@ -92,21 +104,20 @@ class DiffusionDataset(Dataset):
         out_channels = model_params.get("channels", 3)
 
         # Get channel indices to use (if specified)
-        # Can be a single index (int) or a list of indices
         channel_indices = dataset_params.get("channel_indices", None)
 
         # Assert proper relationship between out_channels and channel_indices
         if channel_indices is not None:
             if isinstance(channel_indices, int):
                 # If channel_indices is an int, make sure out_channels is 1
-                assert out_channels == 1, (
-                    f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
-                )
+                assert (
+                    out_channels == 1
+                ), f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
             else:
                 # If channel_indices is a list, make sure its length matches out_channels
-                assert len(channel_indices) == out_channels, (
-                    f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
-                )
+                assert (
+                    len(channel_indices) == out_channels
+                ), f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
 
         # Get spatial dimensions from data
         nx = x.shape[3] if len(x.shape) > 3 else 128
@@ -132,13 +143,6 @@ class DiffusionDataset(Dataset):
                 # Extract the specified channels
                 x_processed = x_reshaped[:, channel_indices, :, :]
                 y_processed = y_reshaped[:, channel_indices, :, :]
-
-                # Check if the selected channels match the expected output channels
-                if len(channel_indices) != out_channels:
-                    print(
-                        f"WARNING: Number of selected channels ({len(channel_indices)}) "
-                        f"doesn't match model channels ({out_channels})"
-                    )
             else:
                 # If no specific channels are selected
                 if out_channels < in_channels:
@@ -152,11 +156,6 @@ class DiffusionDataset(Dataset):
             # If already in correct format, just pass through
             x_processed = x
             y_processed = y
-
-        # Apply normalization to the processed data (after channel selection)
-        if self.normalizer:
-            x_processed = self.normalizer.normalize(torch.tensor(x_processed)).numpy()
-            y_processed = self.normalizer.normalize(torch.tensor(y_processed)).numpy()
 
         print(f"Prepared {self.split_name} input shape: {x_processed.shape}")
         print(f"Prepared {self.split_name} target shape: {y_processed.shape}")
@@ -176,8 +175,6 @@ class DiffusionDataset(Dataset):
             x = torch.tensor(x, dtype=torch.float32)
         if not isinstance(y, torch.Tensor):
             y = torch.tensor(y, dtype=torch.float32)
-
-        # No normalization here - it has already been applied during prepare_diffusion_input
 
         return x, y
 
@@ -215,9 +212,6 @@ def get_diffusion_dataloaders(config, num_workers=4):
 
             # Update the config with the loaded stats
             config["normalization_params"] = norm_params_copy
-
-            # Note: We no longer set sigma_data here from stats file
-            # It will be calculated correctly in the DiffusionDataset after normalization
 
         else:
             print(

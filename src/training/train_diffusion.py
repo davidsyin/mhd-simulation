@@ -20,6 +20,7 @@ from ..visualization.diffusion_visualizer import (
     save_diffusion_samples,
     save_diffusion_comparison_grid,
 )
+from ..visualization.enhanced_diffusion_visualizer import save_enhanced_diffusion_plots
 
 
 def train(config_path, data_path=None):
@@ -228,7 +229,7 @@ def train(config_path, data_path=None):
             or epoch == 0
             or epoch == num_epochs - 1
         ) and val_loader is not None:
-            # Save diffusion samples
+            # Save traditional diffusion samples
             comparison = save_diffusion_samples(
                 model,
                 val_loader,
@@ -236,6 +237,17 @@ def train(config_path, data_path=None):
                 epoch,
                 log_dir,
                 num_samples=wandb_config.get("wandb_num_plots", 4),
+                normalize=train_params.get("normalize_vis", True),
+            )
+
+            # Save enhanced diffusion plots (our new function)
+            save_enhanced_diffusion_plots(
+                model,
+                val_loader,
+                device,
+                epoch,
+                log_dir,
+                num_samples=min(4, wandb_config.get("wandb_num_plots", 4)),
                 normalize=train_params.get("normalize_vis", True),
             )
 
@@ -283,6 +295,17 @@ def train(config_path, data_path=None):
                 h_fidel_samples,
                 samples,
                 os.path.join(log_dir, "final_test_samples.png"),
+                normalize=train_params.get("normalize_vis", True),
+            )
+
+            # Also save enhanced plots for final results
+            save_enhanced_diffusion_plots(
+                model,
+                test_loader,
+                device,
+                "final",
+                log_dir,
+                num_samples=4,
                 normalize=train_params.get("normalize_vis", True),
             )
 

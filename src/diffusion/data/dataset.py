@@ -31,6 +31,10 @@ class DiffusionDataset(Dataset):
         self.input_normalizer = input_normalizer
         self.target_normalizer = target_normalizer
 
+        # Will store original data shape info
+        self.original_shape = None
+        self.timesteps = None
+
         print(f"Loading {split_name} data from {data_path}")
         # Load data
         data = np.load(data_path, allow_pickle=True)
@@ -40,8 +44,16 @@ class DiffusionDataset(Dataset):
         self.inputs = data_dict["diff_inputs"]
         self.targets = data_dict["diff_targets"]
 
+        # Store original data shape information
+        self.original_shape = self.inputs.shape
+        if len(self.original_shape) >= 3:
+            # For shape (nsamples, channels, timesteps, nx, ny)
+            self.timesteps = self.original_shape[2]
+
         print(f"Original {split_name} input shape: {self.inputs.shape}")
         print(f"Original {split_name} target shape: {self.targets.shape}")
+        if self.timesteps:
+            print(f"Timesteps per simulation: {self.timesteps}")
 
         # Apply normalization to all channels first
         if self.input_normalizer:
@@ -285,8 +297,8 @@ def get_diffusion_dataloaders(config, num_workers=4):
     if not train_path:
         raise ValueError("Train data path must be specified in config")
 
-    # Get batch sizes
-    batch_size = config.get("train_loader_params", {}).get("batch_size", 32)
+    # Get batch sizes for training
+    train_batch_size = config.get("train_loader_params", {}).get("batch_size", 32)
 
     # Create datasets - create train first to calculate sigma_data
     print(f"Creating training dataset from {train_path}")
@@ -320,10 +332,10 @@ def get_diffusion_dataloaders(config, num_workers=4):
             split_name="test",
         )
 
-    # Create dataloaders
+    # Create dataloaders with appropriate batch sizes
     train_loader = DataLoader(
         train_dataset,
-        batch_size=batch_size,
+        batch_size=train_batch_size,
         shuffle=True,
         num_workers=num_workers,
         pin_memory=True,
@@ -332,10 +344,20 @@ def get_diffusion_dataloaders(config, num_workers=4):
 
     val_loader = None
     if val_dataset:
+        # For validation, set batch size to timesteps * channels if timesteps is available
+        val_batch_size = train_batch_size
+        if val_dataset.timesteps:
+            model_params = config.get("model_params", {})
+            out_channels = model_params.get("channels", 3)
+            val_batch_size = val_dataset.timesteps * out_channels
+            print(
+                f"Using batch size {val_batch_size} for validation (= {val_dataset.timesteps} timesteps × {out_channels} channels)"
+            )
+
         val_loader = DataLoader(
             val_dataset,
-            batch_size=batch_size,
-            shuffle=False,
+            batch_size=val_batch_size,  # Full simulation in each batch if timesteps available
+            shuffle=False,  # Important: keep temporal order
             num_workers=num_workers,
             pin_memory=True,
             persistent_workers=(num_workers > 0),
@@ -343,10 +365,20 @@ def get_diffusion_dataloaders(config, num_workers=4):
 
     test_loader = None
     if test_dataset:
+        # For test, set batch size to timesteps * channels if timesteps is available
+        test_batch_size = train_batch_size
+        if test_dataset.timesteps:
+            model_params = config.get("model_params", {})
+            out_channels = model_params.get("channels", 3)
+            test_batch_size = test_dataset.timesteps * out_channels
+            print(
+                f"Using batch size {test_batch_size} for test (= {test_dataset.timesteps} timesteps × {out_channels} channels)"
+            )
+
         test_loader = DataLoader(
             test_dataset,
-            batch_size=batch_size,
-            shuffle=False,
+            batch_size=test_batch_size,  # Full simulation in each batch if timesteps available
+            shuffle=False,  # Important: keep temporal order
             num_workers=num_workers,
             pin_memory=True,
             persistent_workers=(num_workers > 0),

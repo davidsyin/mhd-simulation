@@ -68,9 +68,9 @@ class DiffusionDataset(Dataset):
 
             # Calculate sigma_data from normalized targets if this is the training set
             if split_name == "train" and "model_params" in config:
-                self.calculate_sigma_data(config)
+                self.calculate_sigma_data(config, split_name)
 
-    def calculate_sigma_data(self, config):
+    def calculate_sigma_data(self, config, split_name):
         """Calculate sigma_data from normalized training targets for the selected channels"""
         if not hasattr(self, "targets") or self.targets is None:
             return
@@ -89,7 +89,7 @@ class DiffusionDataset(Dataset):
         # Use mean of all channel stds as sigma_data
         sigma_data = float(torch.tensor(channel_stds).mean().item())
         print(
-            f"Setting sigma_data={sigma_data} based on mean of standard deviations from normalized targets\n"
+            f"Setting sigma_data={sigma_data} based on mean of std from normalized {split_name} set targets\n"
         )
 
         # Update config
@@ -165,7 +165,7 @@ class DiffusionDataset(Dataset):
             y_processed = y
 
         print(f"Prepared {self.split_name} input shape: {x_processed.shape}")
-        print(f"Prepared {self.split_name} target shape: {y_processed.shape}")
+        print(f"Prepared {self.split_name} target shape: {y_processed.shape}\n")
 
         return x_processed, y_processed
 

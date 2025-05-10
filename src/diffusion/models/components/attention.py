@@ -35,7 +35,7 @@ class Attend(nn.Module):
         else:
             if flash:
                 print_once(
-                    "Flash attention requested but PyTorch version < 2.0.0, falling back to regular attention"
+                    "Flash attention requested but PyTorch version < 2.0.0, falling back to regular attention\n"
                 )
             self.flash_available = False
 
@@ -52,7 +52,7 @@ class Attend(nn.Module):
         )
 
         if device_version >= version.parse("8.0"):
-            print_once("\nA100/H100 GPU detected (compute capability >= 8.0)")
+            print_once("\nA100/H100 GPU detected (compute capability >= 8.0)\n")
             # Enable all attention mechanisms as fallback options
             self.cuda_config = AttentionConfig(True, True, True)
         else:
@@ -78,8 +78,22 @@ class Attend(nn.Module):
         # Use appropriate config based on device
         config = self.cuda_config if is_cuda else self.cpu_config
 
-        # Try using scaled_dot_product_attention with the configured backends
-        with torch.backends.cuda.sdp_kernel(**config._asdict()):
+        # Use the new torch.nn.attention.sdpa_kernel instead of torch.backends.cuda.sdp_kernel
+        backends = []
+        if config.enable_flash:
+            backends.append(torch.nn.attention.SDPBackend.FLASH_ATTENTION)
+        if config.enable_math:
+            backends.append(torch.nn.attention.SDPBackend.MATH)
+        if config.enable_mem_efficient:
+            backends.append(torch.nn.attention.SDPBackend.EFFICIENT_ATTENTION)
+
+        # Only use the context manager if we have backends
+        if backends:
+            with torch.nn.attention.sdpa_kernel(backends):
+                out = F.scaled_dot_product_attention(
+                    q, k, v, dropout_p=self.dropout if self.training else 0.0
+                )
+        else:
             out = F.scaled_dot_product_attention(
                 q, k, v, dropout_p=self.dropout if self.training else 0.0
             )

@@ -25,30 +25,36 @@ class Attend(nn.Module):
         self.scale = scale
         self.attn_dropout = nn.Dropout(dropout)
 
+        # Initialize flash attention flag
         self.flash = flash
-        assert not (
-            flash and version.parse(torch.__version__) < version.parse("2.0.0")
-        ), "in order to use flash attention, you must be using pytorch 2.0 or above"
+        self.flash_available = False
+
+        # Check if we can enable flash attention
+        if flash and version.parse(torch.__version__) >= version.parse("2.0.0"):
+            self.flash_available = True
+        else:
+            if flash:
+                print_once(
+                    "Flash attention requested but PyTorch version < 2.0.0, falling back to regular attention"
+                )
+            self.flash_available = False
 
         # determine efficient attention configs for cuda and cpu
-
         self.cpu_config = AttentionConfig(True, True, True)
         self.cuda_config = None
 
-        if not torch.cuda.is_available() or not flash:
+        if not torch.cuda.is_available() or not self.flash_available:
             return
 
         device_properties = torch.cuda.get_device_properties(torch.device("cuda"))
-
         device_version = version.parse(
             f"{device_properties.major}.{device_properties.minor}"
         )
 
         if device_version >= version.parse("8.0"):
-            print_once(
-                "\nA100/H100 GPU detected, using flash attention if input tensor is on cuda\n"
-            )
-            self.cuda_config = AttentionConfig(True, False, False)
+            print_once("\nA100/H100 GPU detected (compute capability >= 8.0)")
+            # Enable all attention mechanisms as fallback options
+            self.cuda_config = AttentionConfig(True, True, True)
         else:
             print_once(
                 "\nNon-A100/H100 GPU detected, using math or mem efficient attention if input tensor is on cuda\n"
@@ -69,12 +75,10 @@ class Attend(nn.Module):
 
         q, k, v = map(lambda t: t.contiguous(), (q, k, v))
 
-        # Check if there is a compatible device for flash attention
-
+        # Use appropriate config based on device
         config = self.cuda_config if is_cuda else self.cpu_config
 
-        # pytorch 2.0 flash attn: q, k, v, mask, dropout, causal, softmax_scale
-
+        # Try using scaled_dot_product_attention with the configured backends
         with torch.backends.cuda.sdp_kernel(**config._asdict()):
             out = F.scaled_dot_product_attention(
                 q, k, v, dropout_p=self.dropout if self.training else 0.0
@@ -93,22 +97,14 @@ class Attend(nn.Module):
 
         q_len, k_len, device = q.shape[-2], k.shape[-2], q.device
 
-        if self.flash:
+        if self.flash and self.flash_available:
             return self.flash_attn(q, k, v)
 
+        # Regular attention computation
         scale = default(self.scale, q.shape[-1] ** -0.5)
-
-        # similarity
-
         sim = einsum(f"b h i d, b h j d -> b h i j", q, k) * scale
-
-        # attention
-
         attn = sim.softmax(dim=-1)
         attn = self.attn_dropout(attn)
-
-        # aggregate values
-
         out = einsum(f"b h i j, b h j d -> b h i d", attn, v)
 
         return out

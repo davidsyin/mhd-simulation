@@ -251,10 +251,23 @@ def save_enhanced_diffusion_plots(
 
                     cmap = "RdBu_r"
 
+                    # Calculate colorbar limits for initial condition based on high-fidelity ground truth
+                    vmin_initial = np.min(initial_target_np[0, c])
+                    vmax_initial = np.max(initial_target_np[0, c])
+
+                    # Calculate colorbar limits for final condition based on high-fidelity ground truth
+                    vmin_final = np.min(final_target_np[0, c])
+                    vmax_final = np.max(final_target_np[0, c])
+
                     # ROW 1: Initial condition processing
 
-                    # Column 1: Low-fidelity initial condition (model input)
-                    im = axes[0, 0].imshow(initial_input_np[0, c], cmap=cmap)
+                    # Column 1: Low-fidelity initial condition (model input) - using same limits as HF
+                    im = axes[0, 0].imshow(
+                        initial_input_np[0, c],
+                        cmap=cmap,
+                        vmin=vmin_initial,
+                        vmax=vmax_initial,
+                    )
                     axes[0, 0].set_title(f"LF Initial (Input): {ch_name}")
                     axes[0, 0].axis("off")
                     cbar = plt.colorbar(im, ax=axes[0, 0], fraction=0.046, pad=0.04)
@@ -268,9 +281,6 @@ def save_enhanced_diffusion_plots(
                         cbar.update_ticks()
 
                     # Column 2: True high-fidelity initial condition (ground truth)
-                    vmin_initial = np.min(initial_target_np[0, c])
-                    vmax_initial = np.max(initial_target_np[0, c])
-
                     im = axes[0, 1].imshow(
                         initial_target_np[0, c],
                         cmap=cmap,
@@ -332,8 +342,13 @@ def save_enhanced_diffusion_plots(
 
                     # ROW 2: Final condition processing
 
-                    # Column 1: Low-fidelity final condition (model input)
-                    im = axes[1, 0].imshow(final_input_np[0, c], cmap=cmap)
+                    # Column 1: Low-fidelity final condition (model input) - using same limits as HF
+                    im = axes[1, 0].imshow(
+                        final_input_np[0, c],
+                        cmap=cmap,
+                        vmin=vmin_final,
+                        vmax=vmax_final,
+                    )
                     axes[1, 0].set_title(f"LF Final (Input): {ch_name}")
                     axes[1, 0].axis("off")
                     cbar = plt.colorbar(im, ax=axes[1, 0], fraction=0.046, pad=0.04)
@@ -346,9 +361,6 @@ def save_enhanced_diffusion_plots(
                         cbar.update_ticks()
 
                     # Column 2: True high-fidelity final condition (ground truth)
-                    vmin_final = np.min(final_target_np[0, c])
-                    vmax_final = np.max(final_target_np[0, c])
-
                     im = axes[1, 1].imshow(
                         final_target_np[0, c],
                         cmap=cmap,
@@ -405,11 +417,6 @@ def save_enhanced_diffusion_plots(
                         cbar.formatter = formatter
                         cbar.update_ticks()
 
-                    # Add overall title
-                    plt.suptitle(
-                        f"Diffusion Model Predictions - Epoch {epoch} - Simulation {sim_idx + 1} - {ch_name}",
-                        fontsize=16,
-                    )
                     plt.tight_layout(rect=[0, 0, 1, 0.97])
 
                     # Save the figure - separate plot for each channel

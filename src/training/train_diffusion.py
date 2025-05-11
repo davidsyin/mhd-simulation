@@ -1,6 +1,5 @@
 import os
 import torch
-import torch.nn as nn
 import time
 from torch.utils.tensorboard import SummaryWriter
 import datetime
@@ -10,7 +9,6 @@ from ..diffusion import create_diffusion_model
 from ..diffusion.data.dataset import get_diffusion_dataloaders
 from .train_utils import save_checkpoint, load_checkpoint
 from ..optimizers import create_optimizer, create_scheduler
-from ..losses import LpLoss
 from .trainers.diffusion_trainer import train_epoch_diffusion
 from .validators.diffusion_validator import (
     validate_diffusion,
@@ -55,9 +53,6 @@ def train(config_path, data_path=None):
     print(
         f"\nTensorBoard logs will be saved to {os.path.join(log_dir, 'tensorboard')}\n"
     )
-
-    # Setup error metric using LpLoss
-    rel_l2_error = LpLoss(size_average=True)
 
     # Load data
     print("Creating dataloaders...")

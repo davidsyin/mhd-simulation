@@ -6,18 +6,24 @@ import torch.nn.functional as F
 from tqdm import tqdm
 from einops import rearrange, repeat, reduce
 
-from ..utils.utils import (
+from ..utils import (
     exists,
     default,
     log,
-    normalize_to_neg_one_to_one,
-    unnormalize_to_zero_to_one,
 )
+from .diffusion_factory import register_diffusion_model
+from .backbones.unet import UNet
 
-# main class
 
-
+# Main diffusion model class
 class ElucidatedDiffusion(nn.Module):
+    """
+    Elucidated Diffusion model implementation.
+
+    This model uses a UNet backbone for the denoising process and implements
+    the sampling and training process as described in the Elucidated Diffusion paper.
+    """
+
     def __init__(
         self,
         net,
@@ -37,29 +43,21 @@ class ElucidatedDiffusion(nn.Module):
         S_noise=1.003,
     ):
         super().__init__()
-        # assert net.random_or_learned_sinusoidal_cond
         self.self_condition = net.self_condition
-
         self.net = net
 
         # image dimensions
-
         self.channels = channels
         self.image_size = image_size
 
         # parameters
-
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
-
         self.rho = rho
-
         self.P_mean = P_mean
         self.P_std = P_std
-
-        self.num_sample_steps = num_sample_steps  # otherwise known as N in the paper
-
+        self.num_sample_steps = num_sample_steps
         self.S_churn = S_churn
         self.S_tmin = S_tmin
         self.S_tmax = S_tmax
@@ -194,7 +192,7 @@ class ElucidatedDiffusion(nn.Module):
             images = images_next
 
         images = images.clamp(-1.0, 1.0)
-        return unnormalize_to_zero_to_one(images)
+        return images
 
     @torch.no_grad()
     def sample_using_dpmpp(self, self_cond, batch_size=None, num_sample_steps=None):
@@ -236,7 +234,7 @@ class ElucidatedDiffusion(nn.Module):
             old_denoised = denoised
 
         images = images.clamp(-1.0, 1.0)
-        return unnormalize_to_zero_to_one(images)
+        return images
 
     # training
 
@@ -256,12 +254,12 @@ class ElucidatedDiffusion(nn.Module):
             self.channels,
         )
 
-        assert h == image_size and w == image_size, (
-            f"height and width of image must be {image_size}"
-        )
+        assert (
+            h == image_size and w == image_size
+        ), f"height and width of image must be {image_size}"
         assert c == channels, "mismatch of image channels"
 
-        images = normalize_to_neg_one_to_one(images)
+        images = images
 
         sigmas = self.noise_distribution(batch_size)
         padded_sigmas = rearrange(sigmas, "b -> b 1 1 1")
@@ -278,3 +276,44 @@ class ElucidatedDiffusion(nn.Module):
         losses = losses * self.loss_weight(sigmas)
 
         return losses.mean()
+
+
+# Register diffusion models with decorator
+@register_diffusion_model(model_type="elucidated")
+def elucidated_diffusion_default(model_params):
+    """Default ElucidatedDiffusion model with UNet backbone."""
+
+    # Create UNet backbone
+    unet = UNet(
+        dim=model_params.get("base_dim", 64),
+        dim_mults=model_params.get("dim_mults", (1, 2, 4, 8)),
+        channels=model_params.get("channels", 3),
+        self_condition=model_params.get("self_condition", True),
+        learned_variance=model_params.get("learned_variance", False),
+        learned_sinusoidal_cond=model_params.get("learned_sinusoidal_cond", False),
+        random_fourier_features=model_params.get("random_fourier_features", False),
+        flash_attn=model_params.get("flash_attn", False),
+        attn_heads=model_params.get("attn_heads", 4),
+        attn_dim_head=model_params.get("attn_dim_head", 32),
+        dropout=model_params.get("dropout", 0.0),
+    )
+
+    # Wrap UNet in ElucidatedDiffusion model
+    model = ElucidatedDiffusion(
+        unet,
+        image_size=model_params.get("image_size", 128),
+        channels=model_params.get("channels", 3),
+        num_sample_steps=model_params.get("num_sample_steps", 32),
+        sigma_min=model_params.get("sigma_min", 0.002),
+        sigma_max=model_params.get("sigma_max", 80),
+        sigma_data=model_params.get("sigma_data", 0.5),
+        rho=model_params.get("rho", 7),
+        P_mean=model_params.get("P_mean", -1.2),
+        P_std=model_params.get("P_std", 1.2),
+        S_churn=model_params.get("S_churn", 80),
+        S_tmin=model_params.get("S_tmin", 0.05),
+        S_tmax=model_params.get("S_tmax", 50),
+        S_noise=model_params.get("S_noise", 1.003),
+    )
+
+    return model

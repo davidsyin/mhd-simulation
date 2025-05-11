@@ -40,7 +40,7 @@ model_params:
 ## Normalization options at dataset level
 normalization_params:
   type: "minmax"
-  feature_range: [0, 1]
+  feature_range: [-1, 1]
   inputs_stats_file: "/u/skacmaz/NODs/stats/train_only_diffusion_inputs_stats_Re500.npz"
   targets_stats_file: "/u/skacmaz/NODs/stats/train_only_diffusion_targets_stats_Re500.npz"
 

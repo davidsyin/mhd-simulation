@@ -5,20 +5,29 @@ import torch.nn.functional as F
 from einops import rearrange, reduce, repeat
 from functools import partial
 
-from ..utils.utils import exists, default, cast_tuple, divisible_by
-from .components.layers import (
+from ...utils import exists, default, cast_tuple, divisible_by
+from ..components.layers import (
     Upsample,
     Downsample,
     SinusoidalPosEmb,
     RandomOrLearnedSinusoidalPosEmb,
 )
-from .components.blocks import ResnetBlock
-from .components.attention import Attention, LinearAttention
-from .components.normalization import RMSNorm
+from ..components.blocks import ResnetBlock
+from ..components.attention import Attention, LinearAttention
+from ..components.normalization import RMSNorm
 
 
-# UNet model for diffusion
+# UNet backbone for diffusion models
 class UNet(nn.Module):
+    """
+    UNet architecture that serves as the backbone for diffusion models.
+
+    This implementation is specifically designed to be used with diffusion models
+    and is not intended to be used directly as a standalone model. It provides
+    the neural network backbone that learns to predict noise or denoised images at each
+    step of the diffusion process.
+    """
+
     def __init__(
         self,
         dim,

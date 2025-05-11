@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 import datetime
 
 from ..utils.config import load_config
-from ..diffusion.models.factory import create_diffusion_model
+from ..diffusion import create_diffusion_model
 from ..diffusion.data.dataset import get_diffusion_dataloaders
 from .train_utils import save_checkpoint, load_checkpoint
 from ..optimizers import create_optimizer, create_scheduler

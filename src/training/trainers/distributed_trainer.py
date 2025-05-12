@@ -2,7 +2,7 @@ import torch
 from tqdm import tqdm
 import time
 
-from ...models.model_factory import create_model
+from ...neurops.model_factory import create_model
 
 
 def train_epoch_distributed(

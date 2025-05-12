@@ -2,9 +2,9 @@
 
 import pytest
 import torch
-from src.models.model_factory import create_model, MODEL_REGISTRY
-from src.models.tfno_neuralop import TFNO_neuralop
-from src.models.tfno import TFNO
+from src.neurops.model_factory import create_model, MODEL_REGISTRY
+from src.neurops.tfno_neuralop import TFNO_neuralop
+from src.neurops.tfno import TFNO
 from src.utils.config import load_config
 
 
@@ -14,9 +14,9 @@ def test_model_factory(mini_config):
     model = create_model(mini_config)
 
     # Check type
-    assert isinstance(model, TFNO_neuralop), (
-        "Factory should create TFNO_neuralop model with default config"
-    )
+    assert isinstance(
+        model, TFNO_neuralop
+    ), "Factory should create TFNO_neuralop model with default config"
 
     # Check model has expected attributes
     assert hasattr(model, "model"), "TFNO_neuralop should have 'model' attribute"
@@ -46,9 +46,9 @@ def test_tfno_model_forward(mini_config, device):
 
     # Check output shape - output should have 3 channels (no grid coordinates)
     expected_output_shape = (batch_size, out_channels, t_size, x_size, y_size)
-    assert y.shape == expected_output_shape, (
-        f"Expected output shape {expected_output_shape}, got {y.shape}"
-    )
+    assert (
+        y.shape == expected_output_shape
+    ), f"Expected output shape {expected_output_shape}, got {y.shape}"
 
 
 def test_model_with_actual_data(mini_config_path, generate_mini_mhd_data, device):
@@ -83,9 +83,9 @@ def test_model_with_actual_data(mini_config_path, generate_mini_mhd_data, device
 
     # Check output shape matches target shape, not input shape
     # Input has grid embeddings, output doesn't
-    assert output.shape == y.shape, (
-        f"Expected output shape {y.shape}, got {output.shape}"
-    )
+    assert (
+        output.shape == y.shape
+    ), f"Expected output shape {y.shape}, got {output.shape}"
 
     # Check output is not NaN or Inf
     assert not torch.isnan(output).any(), "Output contains NaN values"
@@ -94,7 +94,7 @@ def test_model_with_actual_data(mini_config_path, generate_mini_mhd_data, device
 
 def test_custom_tfno_model(device):
     """Test the custom TFNO model."""
-    from src.models.tfno import TFNO
+    from src.neurops.tfno import TFNO
 
     # Create minimal config for the custom TFNO model
     config = {
@@ -117,11 +117,11 @@ def test_custom_tfno_model(device):
     model = create_model(config).to(device)
 
     # Verify model type
-    from src.models.tfno import TFNO
+    from src.neurops.tfno import TFNO
 
-    assert isinstance(model, TFNO), (
-        "Factory should create custom TFNO model for tfno_3d variant"
-    )
+    assert isinstance(
+        model, TFNO
+    ), "Factory should create custom TFNO model for tfno_3d variant"
 
     # Test forward pass
     batch_size = 2
@@ -133,9 +133,9 @@ def test_custom_tfno_model(device):
 
     # Check output shape
     expected_shape = (batch_size, 3, 10, 16, 16)
-    assert output.shape == expected_shape, (
-        f"Expected shape {expected_shape}, got {output.shape}"
-    )
+    assert (
+        output.shape == expected_shape
+    ), f"Expected shape {expected_shape}, got {output.shape}"
 
 
 def test_fno_model_creation(device):
@@ -207,9 +207,9 @@ def test_fno_model_forward(device):
 
     # Check output shape
     expected_shape = (batch_size, 3, t_size, x_size, y_size)
-    assert output.shape == expected_shape, (
-        f"Expected output shape {expected_shape}, got {output.shape}"
-    )
+    assert (
+        output.shape == expected_shape
+    ), f"Expected output shape {expected_shape}, got {output.shape}"
 
 
 def test_tfno_different_factorizations(device):
@@ -302,9 +302,9 @@ def test_fno_integration_with_dataloader(generate_mini_mhd_data, device):
         output = model(x)
 
     # Check output shape
-    assert output.shape == y.shape, (
-        f"Expected output shape {y.shape}, got {output.shape}"
-    )
+    assert (
+        output.shape == y.shape
+    ), f"Expected output shape {y.shape}, got {output.shape}"
 
     # Check output is finite
     assert torch.isfinite(output).all(), "Output should have finite values"
@@ -413,13 +413,13 @@ def test_all_registered_models(device):
                 output = model(x)
 
             # Check output shape and values
-            assert output.shape[0] == 1, (
-                f"Output batch size should be 1 for {model_key}"
-            )
+            assert (
+                output.shape[0] == 1
+            ), f"Output batch size should be 1 for {model_key}"
             assert output.shape[1] == 3, f"Output channels should be 3 for {model_key}"
-            assert torch.isfinite(output).all(), (
-                f"Output should be finite for {model_key}"
-            )
+            assert torch.isfinite(
+                output
+            ).all(), f"Output should be finite for {model_key}"
 
         except Exception as e:
             pytest.fail(f"Model {model_key} failed: {str(e)}")

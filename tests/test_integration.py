@@ -6,10 +6,10 @@ import torch.nn as nn
 import numpy as np
 import os
 from src.utils.config import load_config
-from src.models.model_factory import create_model
-from src.models.tfno_neuralop import TFNO_neuralop
-from src.models.tfno import TFNO
-from src.models.fno import FNO  # Import FNO class
+from src.neurops.model_factory import create_model
+from src.neurops.tfno_neuralop import TFNO_neuralop
+from src.neurops.tfno import TFNO
+from src.neurops.fno import FNO  # Import FNO class
 from src.data.dataset import get_dataloaders
 from src.losses.loss_factory import create_loss
 from src.training.validators.validator import validate
@@ -423,7 +423,7 @@ def test_model_priority_order():
     # 3. TFNO_neuralop (lowest priority)
 
     # Check that FNO and TFNO are registered
-    from src.models.model_factory import MODEL_REGISTRY
+    from src.neurops.model_factory import MODEL_REGISTRY
 
     # Confirm FNO models are registered
     assert "fno" in MODEL_REGISTRY, "FNO model should be registered"

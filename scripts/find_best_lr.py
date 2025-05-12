@@ -8,7 +8,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.utils.config import load_config
-from src.models.model_factory import create_model
+from src.neurops.model_factory import create_model
 from src.losses import create_loss
 from src.optimizers import create_optimizer
 from src.data.dataset import get_dataloaders

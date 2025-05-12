@@ -4,7 +4,7 @@ from torch.utils.tensorboard import SummaryWriter
 import time
 
 from ..utils.config import load_config
-from ..models.model_factory import create_model
+from ..neurops.model_factory import create_model
 from ..losses import create_loss
 from ..optimizers import create_optimizer, create_scheduler
 from ..data.dataset import get_dataloaders

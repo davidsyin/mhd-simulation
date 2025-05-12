@@ -7,7 +7,7 @@ from collections import namedtuple
 from typing import Optional, List, Tuple, Union, Callable
 from einops import rearrange, reduce, repeat
 
-from ...utils.utils import exists, default, once, print_once
+from ...utils import exists, default, once, print_once
 from .normalization import RMSNorm
 
 

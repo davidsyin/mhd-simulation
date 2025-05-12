@@ -5,7 +5,7 @@ from typing import Optional, Tuple, Union, List, Callable
 from einops import rearrange, reduce, repeat
 from functools import partial
 
-from ...utils.utils import exists, default
+from ...utils import exists, default
 from .attention import Attention, LinearAttention
 from .normalization import RMSNorm
 

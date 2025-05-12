@@ -6,7 +6,7 @@ from einops import rearrange, reduce, repeat
 from einops.layers.torch import Rearrange
 import math
 
-from ...utils.utils import exists, default, cast_tuple, divisible_by
+from ...utils import exists, default, cast_tuple, divisible_by
 from .blocks import ResnetBlock
 from .attention import Attention, LinearAttention
 from .normalization import RMSNorm

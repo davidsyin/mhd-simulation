@@ -32,7 +32,7 @@ def save_enhanced_diffusion_plots(
         epoch: Current epoch number
         output_dir: Directory to save plots
         num_samples: Number of simulations to visualize
-        denormalize: Whether to normalize for visualization
+        denormalize: Whether to denormalize for visualization
     """
     model.eval()
 
@@ -158,18 +158,6 @@ def save_enhanced_diffusion_plots(
                                         :, channel_idx, 0
                                     ]  # Remove time dimension
 
-                            # # Debug prints
-                            # print(f"tensor:{tensor[0, :, 0, 0]}", flush=True)
-                            # print(f"tensor_5d:{tensor_5d[0, :, :, 0, 0]}", flush=True)
-                            # print(
-                            #     f"full_tensor:{full_tensor[0, -1, :, 0, 0]}", flush=True
-                            # )
-                            # print(
-                            #     f"denormalized:{denormalized[0, -1, :, 0, 0]}",
-                            #     flush=True,
-                            # )
-                            # print(f"result:{result[0, :, 0, 0]}")
-
                             return result
 
                         # Make sure all tensors have batch dimension
@@ -275,7 +263,7 @@ def save_enhanced_diffusion_plots(
 
                     # ROW 1: Initial condition processing
 
-                    # Column 1: Low-fidelity initial condition (model input) - using same limits as HF
+                    # Column 1: Low-fidelity initial condition (model input) - using same limits as HF initial
                     im = axes[0, 0].imshow(
                         initial_input_np[0, c],
                         cmap=cmap,
@@ -356,7 +344,7 @@ def save_enhanced_diffusion_plots(
 
                     # ROW 2: Final condition processing
 
-                    # Column 1: Low-fidelity final condition (model input) - using same limits as HF
+                    # Column 1: Low-fidelity final condition (model input) - using same limits as HF final
                     im = axes[1, 0].imshow(
                         final_input_np[0, c],
                         cmap=cmap,

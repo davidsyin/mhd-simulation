@@ -104,30 +104,3 @@ def log(t: torch.Tensor, eps: float = 1e-20) -> torch.Tensor:
         Tensor containing the log of the input with minimum clamping
     """
     return torch.log(t.clamp(min=eps))
-
-
-# normalization functions
-def normalize_to_neg_one_to_one(img: torch.Tensor) -> torch.Tensor:
-    """
-    Normalize image from [0,1] to [-1,1].
-
-    Args:
-        img: The input image tensor with values in range [0,1]
-
-    Returns:
-        Normalized tensor with values in range [-1,1]
-    """
-    return img * 2 - 1
-
-
-def unnormalize_to_zero_to_one(t: torch.Tensor) -> torch.Tensor:
-    """
-    Unnormalize from [-1,1] to [0,1].
-
-    Args:
-        t: The input tensor with values in range [-1,1]
-
-    Returns:
-        Unnormalized tensor with values in range [0,1]
-    """
-    return (t + 1) * 0.5

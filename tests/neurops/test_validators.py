@@ -3,7 +3,7 @@
 import pytest
 import torch
 from torch.utils.data import DataLoader, TensorDataset
-from src.training.validators.validator import validate
+from src.training.validators import validate
 from src.losses.loss_factory import create_loss
 
 

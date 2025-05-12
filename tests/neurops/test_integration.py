@@ -10,9 +10,9 @@ from src.neurops.model_factory import create_model
 from src.neurops.tfno_neuralop import TFNO_neuralop
 from src.neurops.tfno import TFNO
 from src.neurops.fno import FNO  # Import FNO class
-from src.data.dataset import get_dataloaders
+from src.data.neurops_dataset import get_dataloaders
 from src.losses.loss_factory import create_loss
-from src.training.validators.validator import validate
+from src.training.validators import validate
 from src.optimizers import create_optimizer, create_scheduler
 
 
@@ -199,7 +199,7 @@ def test_integration_with_custom_tfno(tfno_3d_config, generate_mini_mhd_data, de
     assert isinstance(model, TFNO), "Model should be TFNO"
 
     # Use the proper MHDDataset instead of manually creating tensors
-    from src.data.dataset import MHDDataset
+    from src.data import MHDDataset
 
     # Load data
     data = np.load(generate_mini_mhd_data)

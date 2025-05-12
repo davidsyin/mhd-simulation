@@ -7,7 +7,7 @@ from ..utils.config import load_config
 from ..neurops.model_factory import create_model
 from ..losses import create_loss
 from ..optimizers import create_optimizer, create_scheduler
-from ..data.dataset import get_dataloaders
+from ..data import get_dataloaders
 from .trainers import (
     train_epoch,
     train_epoch_distributed,

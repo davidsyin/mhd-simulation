@@ -11,7 +11,7 @@ from src.utils.config import load_config
 from src.neurops.model_factory import create_model
 from src.losses import create_loss
 from src.optimizers import create_optimizer
-from src.data.dataset import get_dataloaders
+from src.data import get_dataloaders
 from src.training.train_utils.lr_finder import LRFinder
 
 

@@ -6,11 +6,11 @@ import datetime
 
 from ..utils.config import load_config
 from ..diffusion import create_diffusion_model
-from ..diffusion.data.dataset import get_diffusion_dataloaders
+from ..data import get_diffusion_dataloaders
 from .train_utils import save_checkpoint, load_checkpoint
 from ..optimizers import create_optimizer, create_scheduler
 from .trainers.diffusion_trainer import train_epoch_diffusion
-from .validators.diffusion_validator import (
+from .validators import (
     validate_diffusion,
     validate_with_denorm_metrics_diffusion,
 )

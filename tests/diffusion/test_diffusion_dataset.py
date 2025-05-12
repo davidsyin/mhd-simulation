@@ -7,7 +7,7 @@ import os
 import tempfile
 from torch.utils.data import DataLoader
 
-from src.diffusion.data.dataset import DiffusionDataset, get_diffusion_dataloaders
+from src.data import DiffusionDataset, get_diffusion_dataloaders
 from src.normalizations import create_normalization
 
 

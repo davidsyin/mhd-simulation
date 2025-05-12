@@ -1,6 +1,6 @@
 """Validation modules for evaluating model performance."""
 
-from .validator import (
+from .neurops_validator import (
     validate,
     validate_with_denorm_metrics,
 )

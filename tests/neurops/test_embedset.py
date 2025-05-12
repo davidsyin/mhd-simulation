@@ -3,7 +3,7 @@
 import pytest
 import torch
 import numpy as np
-from src.data.embedset import EmbeddedMHDDataset
+from src.data.neurops_embedset import EmbeddedMHDDataset
 
 
 def test_embedded_mhd_dataset(mini_config):

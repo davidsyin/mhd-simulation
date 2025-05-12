@@ -1,5 +1,5 @@
 dataset_params:
-  data_dir: /u/skacmaz/NODs/tests/data/
+  data_dir: /u/skacmaz/tmp/NODs/tests/data/
   data_file: mini_mhd_data.npy
   name: MHD_TFNO3d_test
   num: 10

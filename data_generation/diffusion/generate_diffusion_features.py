@@ -13,7 +13,7 @@ sys.path.insert(0, project_root)
 
 from src.utils.config import load_config
 from src.neurops.model_factory import create_model
-from src.data.dataset import get_dataloaders
+from src.data import get_dataloaders
 from src.training.train_utils import load_checkpoint
 
 from src.utils import (

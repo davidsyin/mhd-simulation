@@ -53,7 +53,7 @@ def test_tfno_model_forward(mini_config, device):
 
 def test_model_with_actual_data(mini_config_path, generate_mini_mhd_data, device):
     """Test model with actual data from dataloader."""
-    from src.data.dataset import get_dataloaders
+    from src.data.neurops_dataset import get_dataloaders
 
     # Load config
     config = load_config(mini_config_path)
@@ -256,7 +256,7 @@ def test_tfno_different_factorizations(device):
 
 def test_fno_integration_with_dataloader(generate_mini_mhd_data, device):
     """Test FNO model integration with dataset and dataloader."""
-    from src.data.dataset import get_dataloaders
+    from src.data.neurops_dataset import get_dataloaders
 
     # Create config for FNO
     config = {

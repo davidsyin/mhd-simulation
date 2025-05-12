@@ -11,7 +11,7 @@ from datetime import datetime
 
 from src.utils.config import load_config
 from src.neurops import create_model
-from src.data.dataset import MHDDataset
+from src.data.neurops_dataset import MHDDataset
 from src.training.train_utils.checkpoints import save_checkpoint, load_checkpoint
 
 

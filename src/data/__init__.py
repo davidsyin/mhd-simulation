@@ -2,7 +2,8 @@
 Data utilities for MHD simulations.
 """
 
-from .dataset import MHDDataset, get_dataloaders
-from .embedset import EmbeddedMHDDataset
+from .neurops_dataset import MHDDataset, get_dataloaders
+from .neurops_embedset import EmbeddedMHDDataset
+from .diffusion_dataset import DiffusionDataset, get_diffusion_dataloaders
 
-__all__ = ["MHDDataset", "get_dataloaders", "EmbeddedMHDDataset"]
+__all__ = ["MHDDataset", "get_dataloaders", "EmbeddedMHDDataset", "DiffusionDataset", "get_diffusion_dataloaders"]

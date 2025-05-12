@@ -3,7 +3,7 @@
 import pytest
 import torch
 import numpy as np
-from src.data.dataset import MHDDataset, get_dataloaders
+from src.data.neurops_dataset import MHDDataset, get_dataloaders
 from src.utils.config import load_config
 
 

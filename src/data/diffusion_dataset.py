@@ -2,7 +2,7 @@ import os
 import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
-from ...normalizations import create_normalization
+from ..normalizations import create_normalization
 
 
 class DiffusionDataset(Dataset):

@@ -64,7 +64,15 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
 
                     axes[c, 0].set_title(f"IC: {channel_names[c]}")
                     axes[c, 0].axis("off")
-                    plt.colorbar(im, ax=axes[c, 0], fraction=0.046, pad=0.04)
+                    cbar = plt.colorbar(im, ax=axes[c, 0], fraction=0.046, pad=0.04)
+
+                    # Add scientific notation for the vector potential (A) channel - Initial Condition
+                    if c == 2:  # For channel A
+                        formatter = ScalarFormatter(useMathText=True)
+                        formatter.set_scientific(True)
+                        formatter.set_powerlimits((-2, 2))
+                        cbar.formatter = formatter
+                        cbar.update_ticks()
 
                 # For each channel, calculate colorbar limits based on true results
                 for c in range(data_channels):

@@ -96,5 +96,5 @@ wandb_params:
   wandb_dir: "/u/skacmaz/NODs/logs/diffusion_Re250/"
   wandb_project: "NODs_Diffusion"
   wandb_group: "Re250"
-  wandb_num_plots: 4
-  wandb_plot_freq: 10
+  wandb_num_plots: 1
+  wandb_plot_freq: 50

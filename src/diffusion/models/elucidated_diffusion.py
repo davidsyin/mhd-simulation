@@ -35,14 +35,14 @@ class ElucidatedDiffusion(nn.Module):
         *,
         image_size: int,
         channels: int = 3,
-        num_sample_steps: int = 32,  # number of sampling steps
-        sigma_min: float = 0.002,  # min noise level
-        sigma_max: float = 80,  # max noise level
-        sigma_data: float = 0.5,  # standard deviation of data distribution
-        rho: float = 7,  # controls the sampling schedule
-        P_mean: float = -1.2,  # mean of log-normal distribution from which noise is drawn for training
-        P_std: float = 1.2,  # standard deviation of log-normal distribution from which noise is drawn for training
-        S_churn: float = 80,  # parameters for stochastic sampling - depends on dataset, Table 5 in paper
+        num_sample_steps: int = 32,
+        sigma_min: float = 0.002,
+        sigma_max: float = 80,
+        sigma_data: float = 0.5,
+        rho: float = 7,
+        P_mean: float = -1.2,
+        P_std: float = 1.2,
+        S_churn: float = 80,
         S_tmin: float = 0.05,
         S_tmax: float = 50,
         S_noise: float = 1.003,
@@ -57,7 +57,7 @@ class ElucidatedDiffusion(nn.Module):
             num_sample_steps: Number of discretized steps used during sampling
             sigma_min: Minimum noise level σ_min
             sigma_max: Maximum noise level σ_max
-            sigma_data: Standard deviation of data distribution
+            sigma_data: Standard deviation of (the normalized) data distribution
             rho: Controls the sampling schedule shape
             P_mean: Mean of log-normal noise distribution for training
             P_std: Standard deviation of log-normal noise distribution for training
@@ -211,7 +211,7 @@ class ElucidatedDiffusion(nn.Module):
             + steps / (N - 1) * (self.sigma_min**inv_rho - self.sigma_max**inv_rho)
         ) ** self.rho
 
-        sigmas = F.pad(sigmas, (0, 1), value=0.0)  # last step is sigma value of 0.
+        sigmas = F.pad(sigmas, (0, 1), value=0.0)
         return sigmas
 
     @torch.no_grad()
@@ -239,7 +239,6 @@ class ElucidatedDiffusion(nn.Module):
 
         shape = (batch_size, self.channels, self.image_size, self.image_size)
 
-        # get the schedule, which is returned as (sigma, gamma) tuple, and pair up with the next sigma and gamma
         sigmas = self.sample_schedule(num_sample_steps)
 
         gammas = torch.where(
@@ -273,7 +272,6 @@ class ElucidatedDiffusion(nn.Module):
 
             images_next = images_hat + (sigma_next - sigma_hat) * denoised_over_sigma
 
-            # second order correction, if not the last timestep
             if sigma_next != 0:
                 model_output_next = self.preconditioned_network_forward(
                     images_next, sigma_next, self_cond, clamp=clamp
@@ -456,7 +454,6 @@ def elucidated_diffusion_default(model_params: Dict[str, Any]) -> ElucidatedDiff
         dropout=model_params.get("dropout", 0.0),
     )
 
-    # Wrap UNet in ElucidatedDiffusion model
     model = ElucidatedDiffusion(
         unet,
         image_size=model_params.get("image_size", 128),

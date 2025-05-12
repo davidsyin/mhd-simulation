@@ -45,7 +45,6 @@ class Attend(nn.Module):
         self.flash = flash
         self.flash_available = False
 
-        # Check if we can enable flash attention
         if flash and version.parse(torch.__version__) >= version.parse("2.0.0"):
             self.flash_available = True
         else:
@@ -55,7 +54,6 @@ class Attend(nn.Module):
                 )
             self.flash_available = False
 
-        # determine efficient attention configs for cuda and cpu
         self.cpu_config = AttentionConfig(True, True, True)
         self.cuda_config = None
 

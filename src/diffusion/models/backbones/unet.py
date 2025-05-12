@@ -18,7 +18,6 @@ from ..components.attention import Attention, LinearAttention
 from ..components.normalization import RMSNorm
 
 
-# UNet backbone for diffusion models
 class UNet(nn.Module):
     """
     UNet architecture that serves as the backbone for diffusion models.
@@ -87,7 +86,6 @@ class UNet(nn.Module):
         dims = [init_dim, *map(lambda m: dim * m, dim_mults)]
         in_out = list(zip(dims[:-1], dims[1:]))
 
-        # time embeddings
         time_dim = dim * 4
 
         self.random_or_learned_sinusoidal_cond = (
@@ -121,11 +119,9 @@ class UNet(nn.Module):
 
         assert len(full_attn) == len(dim_mults)
 
-        # prepare blocks
         FullAttention = partial(Attention, flash=flash_attn)
         resnet_block = partial(ResnetBlock, time_emb_dim=time_dim, dropout=dropout)
 
-        # layers
         self.downs = nn.ModuleList([])
         self.ups = nn.ModuleList([])
         num_resolutions = len(in_out)
@@ -231,9 +227,9 @@ class UNet(nn.Module):
         Raises:
             AssertionError: If input dimensions aren't divisible by the downsampling factor
         """
-        assert all(
-            [divisible_by(d, self.downsample_factor) for d in x.shape[-2:]]
-        ), f"your input dimensions {x.shape[-2:]} need to be divisible by {self.downsample_factor}, given the unet"
+        assert all([divisible_by(d, self.downsample_factor) for d in x.shape[-2:]]), (
+            f"your input dimensions {x.shape[-2:]} need to be divisible by {self.downsample_factor}, given the unet"
+        )
 
         if self.self_condition:
             x_self_cond = default(x_self_cond, lambda: torch.zeros_like(x))

@@ -1,4 +1,5 @@
 import math
+from typing import Tuple, List, Optional, Union, Sequence, Any, Callable
 import torch
 from torch import nn
 import torch.nn.functional as F
@@ -23,33 +24,58 @@ class UNet(nn.Module):
     UNet architecture that serves as the backbone for diffusion models.
 
     This implementation is specifically designed to be used with diffusion models
-    and is not intended to be used directly as a standalone model. It provides
-    the neural network backbone that learns to predict noise or denoised images at each
-    step of the diffusion process.
+    and provides a flexible architecture with skip connections, attention mechanisms,
+    and time embeddings for conditioning. It can be configured with different dimensions,
+    self-conditioning, and attention mechanisms.
+
+    The architecture follows the standard U-Net design with encoder path (downs),
+    bottleneck, and decoder path (ups) with skip connections between matching
+    resolutions of encoder and decoder.
     """
 
     def __init__(
         self,
-        dim,
-        init_dim=None,
-        out_dim=None,
-        dim_mults=(1, 2, 4, 8),
-        channels=3,
-        self_condition=False,
-        learned_variance=False,
-        learned_sinusoidal_cond=False,
-        random_fourier_features=False,
-        learned_sinusoidal_dim=16,
-        sinusoidal_pos_emb_theta=10000,
-        dropout=0.0,
-        attn_dim_head=32,
-        attn_heads=4,
-        full_attn=None,  # defaults to full attention only for inner most layer
-        flash_attn=False,
+        dim: int,
+        init_dim: Optional[int] = None,
+        out_dim: Optional[int] = None,
+        dim_mults: Tuple[int, ...] = (1, 2, 4, 8),
+        channels: int = 3,
+        self_condition: bool = False,
+        learned_variance: bool = False,
+        learned_sinusoidal_cond: bool = False,
+        random_fourier_features: bool = False,
+        learned_sinusoidal_dim: int = 16,
+        sinusoidal_pos_emb_theta: int = 10000,
+        dropout: float = 0.0,
+        attn_dim_head: Union[int, Sequence[int]] = 32,
+        attn_heads: Union[int, Sequence[int]] = 4,
+        full_attn: Optional[
+            Union[bool, Tuple[bool, ...]]
+        ] = None,  # defaults to full attention only for inner most layer
+        flash_attn: bool = False,
     ):
-        super().__init__()
+        """
+        Initialize the UNet model.
 
-        # determine dimensions
+        Args:
+            dim: Base dimension for the model
+            init_dim: Initial dimension after first convolution (default: same as dim)
+            out_dim: Output dimension (default: channels × 2 if learned_variance else channels)
+            dim_mults: Dimension multipliers for each level of the UNet
+            channels: Number of input/output channels
+            self_condition: Whether to use self-conditioning
+            learned_variance: Whether to predict variance as well (outputs 2×channels)
+            learned_sinusoidal_cond: Whether to learn sinusoidal embeddings
+            random_fourier_features: Whether to use random Fourier features
+            learned_sinusoidal_dim: Dimension of learned sinusoidal embeddings
+            sinusoidal_pos_emb_theta: Parameter for sinusoidal position embeddings
+            dropout: Dropout probability
+            attn_dim_head: Dimension of each attention head
+            attn_heads: Number of attention heads
+            full_attn: Whether to use full attention or linear attention per level
+            flash_attn: Whether to use flash attention for efficient computation
+        """
+        super().__init__()
 
         self.channels = channels
         self.self_condition = self_condition
@@ -62,7 +88,6 @@ class UNet(nn.Module):
         in_out = list(zip(dims[:-1], dims[1:]))
 
         # time embeddings
-
         time_dim = dim * 4
 
         self.random_or_learned_sinusoidal_cond = (
@@ -86,7 +111,6 @@ class UNet(nn.Module):
         )
 
         # attention
-
         if not full_attn:
             full_attn = (*((False,) * (len(dim_mults) - 1)), True)
 
@@ -98,12 +122,10 @@ class UNet(nn.Module):
         assert len(full_attn) == len(dim_mults)
 
         # prepare blocks
-
         FullAttention = partial(Attention, flash=flash_attn)
         resnet_block = partial(ResnetBlock, time_emb_dim=time_dim, dropout=dropout)
 
         # layers
-
         self.downs = nn.ModuleList([])
         self.ups = nn.ModuleList([])
         num_resolutions = len(in_out)
@@ -180,10 +202,35 @@ class UNet(nn.Module):
         self.final_conv = nn.Conv2d(init_dim, self.out_dim, 1)
 
     @property
-    def downsample_factor(self):
+    def downsample_factor(self) -> int:
+        """
+        Calculate the total downsampling factor of the UNet.
+
+        Returns:
+            The factor by which spatial dimensions are reduced in the encoder path
+        """
         return 2 ** (len(self.downs) - 1)
 
-    def forward(self, x, time, x_self_cond=None):
+    def forward(
+        self,
+        x: torch.Tensor,
+        time: torch.Tensor,
+        x_self_cond: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Forward pass through the UNet model.
+
+        Args:
+            x: Input image tensor [batch, channels, height, width]
+            time: Time embedding tensor [batch, 1]
+            x_self_cond: Optional self-conditioning input (same shape as x)
+
+        Returns:
+            Output tensor [batch, out_dim, height, width]
+
+        Raises:
+            AssertionError: If input dimensions aren't divisible by the downsampling factor
+        """
         assert all(
             [divisible_by(d, self.downsample_factor) for d in x.shape[-2:]]
         ), f"your input dimensions {x.shape[-2:]} need to be divisible by {self.downsample_factor}, given the unet"

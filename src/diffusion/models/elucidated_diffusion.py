@@ -1,4 +1,5 @@
 from math import sqrt
+from typing import Tuple, Optional, List, Union, Dict, Any, Callable
 import torch
 from torch import nn, einsum
 import torch.nn.functional as F
@@ -15,42 +16,63 @@ from .diffusion_factory import register_diffusion_model
 from .backbones.unet import UNet
 
 
-# Main diffusion model class
 class ElucidatedDiffusion(nn.Module):
     """
     Elucidated Diffusion model implementation.
 
     This model uses a UNet backbone for the denoising process and implements
     the sampling and training process as described in the Elucidated Diffusion paper.
+    It provides both regular sampling and DPM++ sampling methods for generating high-quality
+    outputs from noise.
+
+    References:
+        - Karras et al., "Elucidating the Design Space of Diffusion-Based Generative Models"
     """
 
     def __init__(
         self,
-        net,
+        net: nn.Module,
         *,
-        image_size,
-        channels=3,
-        num_sample_steps=32,  # number of sampling steps
-        sigma_min=0.002,  # min noise level
-        sigma_max=80,  # max noise level
-        sigma_data=0.5,  # standard deviation of data distribution
-        rho=7,  # controls the sampling schedule
-        P_mean=-1.2,  # mean of log-normal distribution from which noise is drawn for training
-        P_std=1.2,  # standard deviation of log-normal distribution from which noise is drawn for training
-        S_churn=80,  # parameters for stochastic sampling - depends on dataset, Table 5 in paper
-        S_tmin=0.05,
-        S_tmax=50,
-        S_noise=1.003,
+        image_size: int,
+        channels: int = 3,
+        num_sample_steps: int = 32,  # number of sampling steps
+        sigma_min: float = 0.002,  # min noise level
+        sigma_max: float = 80,  # max noise level
+        sigma_data: float = 0.5,  # standard deviation of data distribution
+        rho: float = 7,  # controls the sampling schedule
+        P_mean: float = -1.2,  # mean of log-normal distribution from which noise is drawn for training
+        P_std: float = 1.2,  # standard deviation of log-normal distribution from which noise is drawn for training
+        S_churn: float = 80,  # parameters for stochastic sampling - depends on dataset, Table 5 in paper
+        S_tmin: float = 0.05,
+        S_tmax: float = 50,
+        S_noise: float = 1.003,
     ):
+        """
+        Initialize the Elucidated Diffusion model.
+
+        Args:
+            net: Neural network model (typically UNet) for denoising
+            image_size: Size of the input/output images (assumes square images)
+            channels: Number of channels in the input/output images
+            num_sample_steps: Number of discretized steps used during sampling
+            sigma_min: Minimum noise level σ_min
+            sigma_max: Maximum noise level σ_max
+            sigma_data: Standard deviation of data distribution
+            rho: Controls the sampling schedule shape
+            P_mean: Mean of log-normal noise distribution for training
+            P_std: Standard deviation of log-normal noise distribution for training
+            S_churn: Stochastic sampling parameter (Table 5 in paper)
+            S_tmin: Minimum threshold for applying stochasticity
+            S_tmax: Maximum threshold for applying stochasticity
+            S_noise: Noise scale for stochastic sampling
+        """
         super().__init__()
         self.self_condition = net.self_condition
         self.net = net
 
-        # image dimensions
         self.channels = channels
         self.image_size = image_size
 
-        # parameters
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
         self.sigma_data = sigma_data
@@ -64,29 +86,87 @@ class ElucidatedDiffusion(nn.Module):
         self.S_noise = S_noise
 
     @property
-    def device(self):
+    def device(self) -> torch.device:
+        """Get the device on which the model parameters are stored."""
         return next(self.net.parameters()).device
 
-    # derived preconditioning params - Table 1
+    def c_skip(self, sigma: Union[torch.Tensor, float]) -> torch.Tensor:
+        """
+        Calculate the skip connection strength c_skip(σ).
 
-    def c_skip(self, sigma):
+        From equation in Table 1 of the paper.
+
+        Args:
+            sigma: Noise level
+
+        Returns:
+            The skip connection coefficient tensor
+        """
         return (self.sigma_data**2) / (sigma**2 + self.sigma_data**2)
 
-    def c_out(self, sigma):
+    def c_out(self, sigma: Union[torch.Tensor, float]) -> torch.Tensor:
+        """
+        Calculate the output scaling factor c_out(σ).
+
+        From equation in Table 1 of the paper.
+
+        Args:
+            sigma: Noise level
+
+        Returns:
+            The output scaling coefficient tensor
+        """
         return sigma * self.sigma_data * (self.sigma_data**2 + sigma**2) ** -0.5
 
-    def c_in(self, sigma):
+    def c_in(self, sigma: Union[torch.Tensor, float]) -> torch.Tensor:
+        """
+        Calculate the input scaling factor c_in(σ).
+
+        From equation in Table 1 of the paper.
+
+        Args:
+            sigma: Noise level
+
+        Returns:
+            The input scaling coefficient tensor
+        """
         return 1 * (sigma**2 + self.sigma_data**2) ** -0.5
 
-    def c_noise(self, sigma):
+    def c_noise(self, sigma: Union[torch.Tensor, float]) -> torch.Tensor:
+        """
+        Calculate the noise level embedding c_noise(σ).
+
+        From equation in Table 1 of the paper.
+
+        Args:
+            sigma: Noise level
+
+        Returns:
+            The noise level embedding tensor
+        """
         return log(sigma) * 0.25
 
-    # preconditioned network output
-    # equation (7) in the paper
-
     def preconditioned_network_forward(
-        self, noised_images, sigma, self_cond=None, clamp=False
-    ):
+        self,
+        noised_images: torch.Tensor,
+        sigma: Union[torch.Tensor, float],
+        self_cond: Optional[torch.Tensor] = None,
+        clamp: bool = False,
+    ) -> torch.Tensor:
+        """
+        Apply the preconditioned network forward pass.
+
+        Implements equation (7) from the paper: D_θ(x, σ) = c_skip(σ)·x + c_out(σ)·F_θ(c_in(σ)·x, c_noise(σ))
+
+        Args:
+            noised_images: Input noisy images
+            sigma: Noise level(s)
+            self_cond: Optional self-conditioning input
+            clamp: Whether to clamp outputs to [-1, 1]
+
+        Returns:
+            Denoised image prediction
+        """
         batch, device = noised_images.shape[0], noised_images.device
 
         if isinstance(sigma, float):
@@ -96,24 +176,30 @@ class ElucidatedDiffusion(nn.Module):
 
         net_out = self.net(
             self.c_in(padded_sigma) * noised_images, self.c_noise(sigma), self_cond
-        )  # F_theta in paper
+        )
 
         out = (
             self.c_skip(padded_sigma) * noised_images
             + self.c_out(padded_sigma) * net_out
-        )  # D_theta in paper
+        )
 
         if clamp:
             out = out.clamp(-1.0, 1.0)
 
         return out
 
-    # sampling
+    def sample_schedule(self, num_sample_steps: Optional[int] = None) -> torch.Tensor:
+        """
+        Generate the noise level schedule for sampling.
 
-    # sample schedule
-    # equation (5) in the paper
+        Implements equation (5) from the paper for discretized noise levels.
 
-    def sample_schedule(self, num_sample_steps=None):
+        Args:
+            num_sample_steps: Number of sampling steps (default: self.num_sample_steps)
+
+        Returns:
+            Tensor of sigma values for each sampling step
+        """
         num_sample_steps = default(num_sample_steps, self.num_sample_steps)
 
         N = num_sample_steps
@@ -129,14 +215,31 @@ class ElucidatedDiffusion(nn.Module):
         return sigmas
 
     @torch.no_grad()
-    def sample(self, self_cond, batch_size=None, num_sample_steps=None, clamp=True):
+    def sample(
+        self,
+        self_cond: torch.Tensor,
+        batch_size: Optional[int] = None,
+        num_sample_steps: Optional[int] = None,
+        clamp: bool = True,
+    ) -> torch.Tensor:
+        """
+        Generate samples using the standard sampling procedure.
+
+        Args:
+            self_cond: Self-conditioning input
+            batch_size: Number of samples to generate (default: derived from self_cond)
+            num_sample_steps: Number of sampling steps (default: self.num_sample_steps)
+            clamp: Whether to clamp final outputs to [-1, 1]
+
+        Returns:
+            Generated image samples
+        """
         batch_size = self_cond.shape[0]
         num_sample_steps = default(num_sample_steps, self.num_sample_steps)
 
         shape = (batch_size, self.channels, self.image_size, self.image_size)
 
         # get the schedule, which is returned as (sigma, gamma) tuple, and pair up with the next sigma and gamma
-
         sigmas = self.sample_schedule(num_sample_steps)
 
         gammas = torch.where(
@@ -147,13 +250,9 @@ class ElucidatedDiffusion(nn.Module):
 
         sigmas_and_gammas = list(zip(sigmas[:-1], sigmas[1:], gammas[:-1]))
 
-        # images is noise at the beginning
-
         init_sigma = sigmas[0]
 
         images = init_sigma * torch.randn(shape, device=self.device)
-
-        # gradually denoise
 
         for sigma, sigma_next, gamma in tqdm(
             sigmas_and_gammas, desc="sampling time step"
@@ -162,9 +261,7 @@ class ElucidatedDiffusion(nn.Module):
                 lambda t: t.item(), (sigma, sigma_next, gamma)
             )
 
-            eps = self.S_noise * torch.randn(
-                shape, device=self.device
-            )  # stochastic sampling
+            eps = self.S_noise * torch.randn(shape, device=self.device)
 
             sigma_hat = sigma + gamma * sigma
             images_hat = images + sqrt(sigma_hat**2 - sigma**2) * eps
@@ -177,7 +274,6 @@ class ElucidatedDiffusion(nn.Module):
             images_next = images_hat + (sigma_next - sigma_hat) * denoised_over_sigma
 
             # second order correction, if not the last timestep
-
             if sigma_next != 0:
                 model_output_next = self.preconditioned_network_forward(
                     images_next, sigma_next, self_cond, clamp=clamp
@@ -195,10 +291,28 @@ class ElucidatedDiffusion(nn.Module):
         return images
 
     @torch.no_grad()
-    def sample_using_dpmpp(self, self_cond, batch_size=None, num_sample_steps=None):
+    def sample_using_dpmpp(
+        self,
+        self_cond: torch.Tensor,
+        batch_size: Optional[int] = None,
+        num_sample_steps: Optional[int] = None,
+    ) -> torch.Tensor:
         """
-        thanks to Katherine Crowson (https://github.com/crowsonkb) for figuring it all out!
+        Generate samples using the DPM++ solver.
+
+        Implements the DPM++ solver from "DPM-Solver: A Fast ODE Solver for Diffusion
+        Probabilistic Model Sampling in Around 10 Steps" for improved sampling quality.
+
+        Thanks to Katherine Crowson (https://github.com/crowsonkb) for figuring it all out!
         https://arxiv.org/abs/2211.01095
+
+        Args:
+            self_cond: Self-conditioning input
+            batch_size: Number of samples to generate (default: derived from self_cond)
+            num_sample_steps: Number of sampling steps (default: self.num_sample_steps)
+
+        Returns:
+            Generated image samples
         """
         batch_size = self_cond.shape[0]
         device, num_sample_steps = (
@@ -236,17 +350,52 @@ class ElucidatedDiffusion(nn.Module):
         images = images.clamp(-1.0, 1.0)
         return images
 
-    # training
+    def loss_weight(self, sigma: torch.Tensor) -> torch.Tensor:
+        """
+        Calculate the weighting factor for the loss function.
 
-    def loss_weight(self, sigma):
+        This implements the λ(σ) weighting from the paper.
+
+        Args:
+            sigma: Noise level
+
+        Returns:
+            Loss weighting factor
+        """
         return (sigma**2 + self.sigma_data**2) * (sigma * self.sigma_data) ** -2
 
-    def noise_distribution(self, batch_size):
+    def noise_distribution(self, batch_size: int) -> torch.Tensor:
+        """
+        Sample noise levels from the training noise distribution.
+
+        Samples from a log-normal distribution as described in the paper.
+
+        Args:
+            batch_size: Number of noise levels to sample
+
+        Returns:
+            Batch of noise level values
+        """
         return (
             self.P_mean + self.P_std * torch.randn((batch_size,), device=self.device)
         ).exp()
 
-    def forward(self, images, self_cond=None):
+    def forward(
+        self, images: torch.Tensor, self_cond: Optional[torch.Tensor] = None
+    ) -> torch.Tensor:
+        """
+        Forward pass for training.
+
+        Args:
+            images: Clean input images
+            self_cond: Optional self-conditioning input
+
+        Returns:
+            Mean loss value
+
+        Raises:
+            AssertionError: If image dimensions don't match expected size
+        """
         batch_size, c, h, w, device, image_size, channels = (
             *images.shape,
             images.device,
@@ -266,7 +415,7 @@ class ElucidatedDiffusion(nn.Module):
 
         noise = torch.randn_like(images)
 
-        noised_images = images + padded_sigmas * noise  # alphas are 1. in the paper
+        noised_images = images + padded_sigmas * noise
 
         denoised = self.preconditioned_network_forward(noised_images, sigmas, self_cond)
 
@@ -278,12 +427,21 @@ class ElucidatedDiffusion(nn.Module):
         return losses.mean()
 
 
-# Register diffusion models with decorator
 @register_diffusion_model(model_type="elucidated")
-def elucidated_diffusion_default(model_params):
-    """Default ElucidatedDiffusion model with UNet backbone."""
+def elucidated_diffusion_default(model_params: Dict[str, Any]) -> ElucidatedDiffusion:
+    """
+    Create a default ElucidatedDiffusion model with UNet backbone.
 
-    # Create UNet backbone
+    This function constructs a UNet backbone with appropriate parameters
+    from the model_params dictionary and wraps it in an ElucidatedDiffusion model.
+
+    Args:
+        model_params: Dictionary of model parameters
+
+    Returns:
+        Initialized ElucidatedDiffusion model
+    """
+
     unet = UNet(
         dim=model_params.get("base_dim", 64),
         dim_mults=model_params.get("dim_mults", (1, 2, 4, 8)),

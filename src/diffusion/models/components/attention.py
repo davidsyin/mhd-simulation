@@ -4,28 +4,44 @@ import torch.nn.functional as F
 from functools import wraps, partial
 from packaging import version
 from collections import namedtuple
+from typing import Optional, List, Tuple, Union, Callable
 from einops import rearrange, reduce, repeat
 
 from ...utils.utils import exists, default, once, print_once
 from .normalization import RMSNorm
 
-# constants
 
 AttentionConfig = namedtuple(
     "AttentionConfig", ["enable_flash", "enable_math", "enable_mem_efficient"]
 )
 
-# Attention classes
-
 
 class Attend(nn.Module):
-    def __init__(self, dropout=0.0, flash=False, scale=None):
+    """
+    Core attention mechanism implementation with various backend options.
+
+    This module provides a flexible attention implementation that can leverage
+    different backend optimizations including flash attention when available.
+    It automatically selects the most efficient implementation based on the
+    available hardware and PyTorch version.
+    """
+
+    def __init__(
+        self, dropout: float = 0.0, flash: bool = False, scale: Optional[float] = None
+    ):
+        """
+        Initialize the attention module.
+
+        Args:
+            dropout: Dropout probability for attention weights
+            flash: Whether to use flash attention when available
+            scale: Optional custom scaling factor for attention (default: 1/sqrt(dim))
+        """
         super().__init__()
         self.dropout = dropout
         self.scale = scale
         self.attn_dropout = nn.Dropout(dropout)
 
-        # Initialize flash attention flag
         self.flash = flash
         self.flash_available = False
 
@@ -61,7 +77,20 @@ class Attend(nn.Module):
             )
             self.cuda_config = AttentionConfig(False, True, True)
 
-    def flash_attn(self, q, k, v):
+    def flash_attn(
+        self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor
+    ) -> torch.Tensor:
+        """
+        Compute attention using PyTorch's optimized SDPA (Scaled Dot-Product Attention).
+
+        Args:
+            q: Query tensor [batch, heads, seq_len, dim]
+            k: Key tensor [batch, heads, seq_len, dim]
+            v: Value tensor [batch, heads, seq_len, dim]
+
+        Returns:
+            Output tensor after attention [batch, heads, seq_len, dim]
+        """
         _, heads, q_len, _, k_len, is_cuda, device = (
             *q.shape,
             k.shape[-2],
@@ -75,10 +104,8 @@ class Attend(nn.Module):
 
         q, k, v = map(lambda t: t.contiguous(), (q, k, v))
 
-        # Use appropriate config based on device
         config = self.cuda_config if is_cuda else self.cpu_config
 
-        # Use the new torch.nn.attention.sdpa_kernel instead of torch.backends.cuda.sdp_kernel
         backends = []
         if config.enable_flash:
             backends.append(torch.nn.attention.SDPBackend.FLASH_ATTENTION)
@@ -87,7 +114,6 @@ class Attend(nn.Module):
         if config.enable_mem_efficient:
             backends.append(torch.nn.attention.SDPBackend.EFFICIENT_ATTENTION)
 
-        # Only use the context manager if we have backends
         if backends:
             with torch.nn.attention.sdpa_kernel(backends):
                 out = F.scaled_dot_product_attention(
@@ -100,21 +126,28 @@ class Attend(nn.Module):
 
         return out
 
-    def forward(self, q, k, v):
+    def forward(
+        self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor
+    ) -> torch.Tensor:
         """
-        einstein notation
-        b - batch
-        h - heads
-        n, i, j - sequence length (base sequence length, source, target)
-        d - feature dimension
-        """
+        Forward pass of the attention module.
 
+        Implements the standard query-key-value attention mechanism with automatic
+        selection of the most efficient backend.
+
+        Args:
+            q: Query tensor [batch, heads, seq_len, dim]
+            k: Key tensor [batch, heads, seq_len, dim]
+            v: Value tensor [batch, heads, seq_len, dim]
+
+        Returns:
+            Output tensor after attention [batch, heads, seq_len, dim]
+        """
         q_len, k_len, device = q.shape[-2], k.shape[-2], q.device
 
         if self.flash and self.flash_available:
             return self.flash_attn(q, k, v)
 
-        # Regular attention computation
         scale = default(self.scale, q.shape[-1] ** -0.5)
         sim = einsum(f"b h i d, b h j d -> b h i j", q, k) * scale
         attn = sim.softmax(dim=-1)
@@ -125,7 +158,32 @@ class Attend(nn.Module):
 
 
 class Attention(nn.Module):
-    def __init__(self, dim, heads=4, dim_head=32, num_mem_kv=4, flash=False):
+    """
+    Multi-head self-attention module with learned memory vectors.
+
+    This module implements multi-head self-attention with additional
+    learned memory key-value pairs, suitable for processing image features
+    in a convolutional neural network.
+    """
+
+    def __init__(
+        self,
+        dim: int,
+        heads: int = 4,
+        dim_head: int = 32,
+        num_mem_kv: int = 4,
+        flash: bool = False,
+    ):
+        """
+        Initialize the attention module.
+
+        Args:
+            dim: Input feature dimension
+            heads: Number of attention heads
+            dim_head: Dimension of each attention head
+            num_mem_kv: Number of memory key-value pairs
+            flash: Whether to use flash attention if available
+        """
         super().__init__()
         self.heads = heads
         hidden_dim = dim_head * heads
@@ -137,7 +195,16 @@ class Attention(nn.Module):
         self.to_qkv = nn.Conv2d(dim, hidden_dim * 3, 1, bias=False)
         self.to_out = nn.Conv2d(hidden_dim, dim, 1)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Apply multi-head self-attention with memory key-values.
+
+        Args:
+            x: Input feature map [batch, channels, height, width]
+
+        Returns:
+            Attention output with same shape as input
+        """
         b, c, h, w = x.shape
 
         x = self.norm(x)
@@ -157,7 +224,27 @@ class Attention(nn.Module):
 
 
 class LinearAttention(nn.Module):
-    def __init__(self, dim, heads=4, dim_head=32, num_mem_kv=4):
+    """
+    Linear attention implementation for more efficient computation.
+
+    This module implements a linearized version of attention using the
+    associative property of matrix multiplication, resulting in O(n)
+    complexity instead of O(n²) for standard attention, making it more
+    efficient for longer sequences.
+    """
+
+    def __init__(
+        self, dim: int, heads: int = 4, dim_head: int = 32, num_mem_kv: int = 4
+    ):
+        """
+        Initialize the linear attention module.
+
+        Args:
+            dim: Input feature dimension
+            heads: Number of attention heads
+            dim_head: Dimension of each attention head
+            num_mem_kv: Number of memory key-value pairs
+        """
         super().__init__()
         self.scale = dim_head**-0.5
         self.heads = heads
@@ -170,7 +257,16 @@ class LinearAttention(nn.Module):
 
         self.to_out = nn.Sequential(nn.Conv2d(hidden_dim, dim, 1), RMSNorm(dim))
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Apply linear attention to the input.
+
+        Args:
+            x: Input feature map [batch, channels, height, width]
+
+        Returns:
+            Attention output with same shape as input
+        """
         b, c, h, w = x.shape
 
         x = self.norm(x)

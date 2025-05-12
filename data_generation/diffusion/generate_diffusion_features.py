@@ -5,10 +5,11 @@ import torch
 import numpy as np
 from pathlib import Path
 
-# Add the parent directory to the Python path
+# Add the src directory to the Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(script_dir)
-sys.path.insert(0, parent_dir)
+project_root = os.path.dirname(parent_dir)
+sys.path.insert(0, project_root)
 
 from src.utils.config import load_config
 from src.models.model_factory import create_model

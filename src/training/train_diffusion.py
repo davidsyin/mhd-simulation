@@ -232,7 +232,7 @@ def train(config_path, data_path=None):
                 epoch,
                 log_dir,
                 num_samples=wandb_config.get("wandb_num_plots", 4),
-                normalize=train_params.get("normalize_vis", True),
+                normalize=train_params.get("norm_torchvision", True),
             )
 
             # Save enhanced diffusion plots (our new function)
@@ -243,7 +243,7 @@ def train(config_path, data_path=None):
                 epoch,
                 log_dir,
                 num_samples=min(4, wandb_config.get("wandb_num_plots", 4)),
-                normalize=train_params.get("normalize_vis", True),
+                denormalize=train_params.get("denorm_enhanced_vis", True),
             )
 
             # Log to tensorboard

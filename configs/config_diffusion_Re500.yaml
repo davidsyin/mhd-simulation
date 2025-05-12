@@ -84,7 +84,8 @@ train_params:
   sample_interval: 100
   clip_grad: True
   clip_grad_max_norm: 1.0
-  normalize_vis: True
+  norm_torchvision: True
+  denorm_enhanced_vis: True
 
 ###################
 ## Log params

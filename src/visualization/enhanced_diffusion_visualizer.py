@@ -8,7 +8,7 @@ from matplotlib.ticker import ScalarFormatter
 
 
 def save_enhanced_diffusion_plots(
-    model, val_loader, device, epoch, output_dir, num_samples=4, normalize=True
+    model, val_loader, device, epoch, output_dir, num_samples=4, denormalize=True
 ):
     """
     Generate comprehensive visualizations of diffusion model predictions in a 2x4 grid per channel:
@@ -32,7 +32,7 @@ def save_enhanced_diffusion_plots(
         epoch: Current epoch number
         output_dir: Directory to save plots
         num_samples: Number of simulations to visualize
-        normalize: Whether to normalize for visualization
+        denormalize: Whether to normalize for visualization
     """
     model.eval()
 
@@ -115,7 +115,7 @@ def save_enhanced_diffusion_plots(
 
                 # Denormalize if needed
                 if (
-                    not normalize
+                    denormalize
                     and input_normalizer is not None
                     and target_normalizer is not None
                 ):
@@ -158,6 +158,18 @@ def save_enhanced_diffusion_plots(
                                         :, channel_idx, 0
                                     ]  # Remove time dimension
 
+                            # # Debug prints
+                            # print(f"tensor:{tensor[0, :, 0, 0]}", flush=True)
+                            # print(f"tensor_5d:{tensor_5d[0, :, :, 0, 0]}", flush=True)
+                            # print(
+                            #     f"full_tensor:{full_tensor[0, -1, :, 0, 0]}", flush=True
+                            # )
+                            # print(
+                            #     f"denormalized:{denormalized[0, -1, :, 0, 0]}",
+                            #     flush=True,
+                            # )
+                            # print(f"result:{result[0, :, 0, 0]}")
+
                             return result
 
                         # Make sure all tensors have batch dimension
@@ -170,9 +182,11 @@ def save_enhanced_diffusion_plots(
                         initial_input_denorm = denormalize_with_channel_mapping(
                             initial_input, input_normalizer, channel_indices
                         )
+
                         initial_target_denorm = denormalize_with_channel_mapping(
                             initial_target, target_normalizer, channel_indices
                         )
+
                         initial_pred_denorm = denormalize_with_channel_mapping(
                             initial_prediction, target_normalizer, channel_indices
                         )

@@ -175,7 +175,6 @@ def train(config_path, data_path=None):
             epoch_time = time.time() - epoch_start_time
             print(
                 f"\nEpoch {epoch} ({epoch_time:.2f}s): Train Loss: {train_loss:.6f}, "
-                f"Val Loss (Model): {val_loss:.6f}, Val Loss (Denorm Rel L2): {denorm_val_rel_l2:.6f}, Val Loss (Denorm MSE): {denorm_val_mse:.6f}, "
                 f"LR: {scheduler.get_last_lr()[0] if not isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau) else optimizer.param_groups[0]['lr']}\n"
             )
 

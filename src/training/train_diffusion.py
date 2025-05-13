@@ -93,7 +93,7 @@ def train(config_path, data_path=None):
 
         if not train_params.get("is_finetune", False):
             start_epoch = checkpoint_data["epoch"]
-            best_val_loss = checkpoint_data["loss"] + 0.02
+            best_val_loss = checkpoint_data["loss"]
             best_denorm_val_rel_l2 = checkpoint_data.get(
                 "denorm_loss_rel_l2", float("inf")
             )

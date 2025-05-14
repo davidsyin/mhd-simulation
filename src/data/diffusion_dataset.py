@@ -31,20 +31,16 @@ class DiffusionDataset(Dataset):
         self.input_normalizer = input_normalizer
         self.target_normalizer = target_normalizer
 
-        # Will store original data shape info
         self.original_shape = None
         self.timesteps = None
 
         print(f"Loading {split_name} data from {data_path}")
-        # Load data
         data = np.load(data_path, allow_pickle=True)
         data_dict = data.item() if isinstance(data, np.ndarray) else data
 
-        # Get inputs and targets
         self.inputs = data_dict["diff_inputs"]
         self.targets = data_dict["diff_targets"]
 
-        # Store original data shape information
         self.original_shape = self.inputs.shape
         if len(self.original_shape) >= 3:
             # For shape (nsamples, channels, timesteps, nx, ny)
@@ -57,18 +53,14 @@ class DiffusionDataset(Dataset):
 
         # Apply normalization to all channels first
         if self.input_normalizer:
-            # Convert to tensors for normalization
             inputs_tensor = torch.tensor(self.inputs, dtype=torch.float32)
 
-            # Apply input normalization
             self.inputs = self.input_normalizer.normalize(inputs_tensor)
             print(f"Applied input normalization to all channels")
 
         if self.target_normalizer:
-            # Convert to tensors for normalization
             targets_tensor = torch.tensor(self.targets, dtype=torch.float32)
 
-            # Apply target normalization
             self.targets = self.target_normalizer.normalize(targets_tensor)
             print(f"Applied target normalization to all channels\n")
 
@@ -87,14 +79,10 @@ class DiffusionDataset(Dataset):
         if not hasattr(self, "targets") or self.targets is None:
             return
 
-        # Calculate standard deviation
-        # Convert targets to PyTorch tensor if they are not already
         targets = self.targets
 
-        # Calculate standard deviation for each channel
         channel_stds = []
-        for c in range(targets.shape[1]):  # Iterate over channels
-            # Calculate std for this channel across all other dimensions
+        for c in range(targets.shape[1]):
             channel_std = targets[:, c].std().item()
             channel_stds.append(channel_std)
 
@@ -104,7 +92,6 @@ class DiffusionDataset(Dataset):
             f"Setting sigma_data={sigma_data} based on mean of std from normalized {split_name} set targets\n"
         )
 
-        # Update config
         config["model_params"]["sigma_data"] = sigma_data
 
         return sigma_data
@@ -115,28 +102,23 @@ class DiffusionDataset(Dataset):
 
         Note: This function expects already normalized data
         """
-        # Get parameters from config
         model_params = config.get("model_params", {})
         dataset_params = config.get("dataset_params", {})
 
-        # Get number of channels from model config
         out_channels = model_params.get("channels", 3)
 
-        # Get channel indices to use (if specified)
         channel_indices = dataset_params.get("channel_indices", None)
 
         # Assert proper relationship between out_channels and channel_indices
         if channel_indices is not None:
             if isinstance(channel_indices, int):
-                # If channel_indices is an int, make sure out_channels is 1
-                assert (
-                    out_channels == 1
-                ), f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
+                assert out_channels == 1, (
+                    f"Model expects {out_channels} channels but only one channel index {channel_indices} was provided"
+                )
             else:
-                # If channel_indices is a list, make sure its length matches out_channels
-                assert (
-                    len(channel_indices) == out_channels
-                ), f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
+                assert len(channel_indices) == out_channels, (
+                    f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
+                )
 
         # Get spatial dimensions from data
         nx = x.shape[3] if len(x.shape) > 3 else 128
@@ -155,17 +137,13 @@ class DiffusionDataset(Dataset):
 
             # Handle channel selection
             if channel_indices is not None:
-                # Convert to list if it's a single integer
                 if isinstance(channel_indices, int):
                     channel_indices = [channel_indices]
 
-                # Extract the specified channels
                 x_processed = x_reshaped[:, channel_indices, :, :]
                 y_processed = y_reshaped[:, channel_indices, :, :]
             else:
-                # If no specific channels are selected
                 if out_channels < in_channels:
-                    # By default, take the first 'out_channels' channels
                     x_processed = x_reshaped[:, :out_channels, :, :]
                     y_processed = y_reshaped[:, :out_channels, :, :]
                 else:
@@ -189,7 +167,6 @@ class DiffusionDataset(Dataset):
         x = self.inputs[idx]
         y = self.targets[idx]
 
-        # Convert to tensor if not already
         if not isinstance(x, torch.Tensor):
             x = torch.tensor(x, dtype=torch.float32)
         if not isinstance(y, torch.Tensor):
@@ -208,7 +185,6 @@ def get_diffusion_dataloaders(config, num_workers=4):
     Returns:
         train_loader, val_loader, test_loader
     """
-    # Process normalization configs and load NPZ stats if needed
     input_normalizer = None
     target_normalizer = None
 
@@ -216,7 +192,6 @@ def get_diffusion_dataloaders(config, num_workers=4):
         norm_params = config.get("normalization_params", {})
         norm_type = norm_params.get("type", "identity").lower()
 
-        # Get stats file paths
         inputs_stats_file = norm_params.get("inputs_stats_file")
         targets_stats_file = norm_params.get("targets_stats_file")
 
@@ -239,10 +214,8 @@ def get_diffusion_dataloaders(config, num_workers=4):
             print(f"\nLoading input normalization statistics from {inputs_stats_file}")
             input_stats = np.load(inputs_stats_file)
 
-            # Create a copy of norm_params for input-specific normalization
             input_norm_params = norm_params.copy()
 
-            # Update with input stats
             for key in input_stats.files:
                 input_norm_params[key] = (
                     input_stats[key].tolist()
@@ -251,7 +224,6 @@ def get_diffusion_dataloaders(config, num_workers=4):
                 )
                 print(f"Input {key}: {input_stats[key]}")
 
-            # Create input normalizer
             input_normalizer = create_normalization(
                 {"normalization_params": input_norm_params}
             )
@@ -267,10 +239,8 @@ def get_diffusion_dataloaders(config, num_workers=4):
             print(f"Loading target normalization statistics from {targets_stats_file}")
             target_stats = np.load(targets_stats_file)
 
-            # Create a copy of norm_params for target-specific normalization
             target_norm_params = norm_params.copy()
 
-            # Update with target stats
             for key in target_stats.files:
                 target_norm_params[key] = (
                     target_stats[key].tolist()
@@ -279,7 +249,6 @@ def get_diffusion_dataloaders(config, num_workers=4):
                 )
                 print(f"Target {key}: {target_stats[key]}")
 
-            # Create target normalizer
             target_normalizer = create_normalization(
                 {"normalization_params": target_norm_params}
             )
@@ -288,7 +257,6 @@ def get_diffusion_dataloaders(config, num_workers=4):
         if not input_normalizer and not target_normalizer:
             print("\n***WARNING: No valid stats files found for normalization!***\n")
 
-    # Get data paths from config
     dataset_params = config.get("dataset_params", {})
     train_path = dataset_params.get("train_path")
     val_path = dataset_params.get("val_path")
@@ -297,7 +265,6 @@ def get_diffusion_dataloaders(config, num_workers=4):
     if not train_path:
         raise ValueError("Train data path must be specified in config")
 
-    # Get batch sizes for training
     train_batch_size = config.get("train_loader_params", {}).get("batch_size", 32)
 
     # Create datasets - create train first to calculate sigma_data
@@ -344,12 +311,12 @@ def get_diffusion_dataloaders(config, num_workers=4):
 
     val_loader = None
     if val_dataset:
-        # For validation, set batch size to timesteps * channels if timesteps is available
+        # For validation, set batch size to timesteps
         val_batch_size = train_batch_size
         if val_dataset.timesteps:
             model_params = config.get("model_params", {})
             out_channels = model_params.get("channels", 3)
-            val_batch_size = val_dataset.timesteps * out_channels
+            val_batch_size = val_dataset.timesteps
             print(
                 f"Using batch size {val_batch_size} for validation (= {val_dataset.timesteps} timesteps × {out_channels} channels)"
             )
@@ -365,12 +332,12 @@ def get_diffusion_dataloaders(config, num_workers=4):
 
     test_loader = None
     if test_dataset:
-        # For test, set batch size to timesteps * channels if timesteps is available
+        # For test, set batch size to timesteps
         test_batch_size = train_batch_size
         if test_dataset.timesteps:
             model_params = config.get("model_params", {})
             out_channels = model_params.get("channels", 3)
-            test_batch_size = test_dataset.timesteps * out_channels
+            test_batch_size = test_dataset.timesteps
             print(
                 f"Using batch size {test_batch_size} for test (= {test_dataset.timesteps} timesteps × {out_channels} channels)"
             )

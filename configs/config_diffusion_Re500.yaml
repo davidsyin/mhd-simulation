@@ -8,7 +8,7 @@ model_params:
   # UNet parameters
   base_dim: 64
   dim_mults: [1, 2, 4, 8, 8]
-  channels: 1  # Updated to match the number of selected channels [0, 2]
+  channels: 3  # Updated to match the number of selected channels [0, 2]
   self_condition: True
   learned_variance: False
   learned_sinusoidal_cond: False
@@ -50,7 +50,7 @@ dataset_params:
   train_path: "/projects/begd/skacmaz/NODs_diffusion_data/Re500/train.npy"
   val_path: "/projects/begd/skacmaz/NODs_diffusion_data/Re500/val.npy"
   test_path: "/projects/begd/skacmaz/NODs_diffusion_data/Re500/test.npy"
-  channel_indices: 2    # Can be a list of channel indices
+  # channel_indices: 2    # Can be a list of channel indices
 
 ###################
 ## Dataloader options
@@ -70,8 +70,8 @@ optimizer_params:
 
   use_scheduler: True
   scheduler_type: "cosine"
-  T_max: 30880000
-  # eta_min: 1.0e-6
+  T_max: 10000
+  eta_min: 1.0e-6
 
 ###################
 ## Training params

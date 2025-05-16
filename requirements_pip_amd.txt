@@ -12,7 +12,7 @@ torchprofile
 tqdm
 wandb
 
-# ROCm PyTorch for AMD GPUs (MI100)
+# ROCm PyTorch for AMD GPUs
 --extra-index-url https://download.pytorch.org/whl/rocm6.2
 torch==2.6.0+rocm6.2
 torchvision==0.21.0+rocm6.2

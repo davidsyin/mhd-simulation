@@ -1,4 +1,4 @@
-name: NODs_MI100
+name: NODs_AMD
 channels:
   - pytorch
   - conda-forge

@@ -24,11 +24,9 @@ def calculate_training_statistics(config_path, output_file=None):
     Returns:
         Dictionary with calculated statistics
     """
-    # Load configuration
     print(f"Loading configuration from {config_path}...")
     config = load_config(config_path)
 
-    # Get config_type (default to "default" if not specified)
     config_type = config.get("config_type", "default")
 
     if config_type == "diffusion":
@@ -47,7 +45,6 @@ def _calculate_channel_statistics(data_flat):
     Returns:
         Dictionary with calculated statistics
     """
-    # Calculate statistics
     mean = np.mean(data_flat, axis=(0, 2))
     std = np.std(data_flat, axis=(0, 2))
     min_val = np.min(data_flat, axis=(0, 2))
@@ -64,14 +61,11 @@ def _save_statistics(stats_file, stats):
         stats_file: Path to save the statistics file
         stats: Dictionary with statistics to save
     """
-    # Ensure the output directory exists
     os.makedirs(os.path.dirname(os.path.abspath(stats_file)), exist_ok=True)
 
-    # Make sure the file has .npz extension
     if not stats_file.endswith(".npz"):
         stats_file = f"{os.path.splitext(stats_file)[0]}.npz"
 
-    # Save statistics
     np.savez(
         stats_file,
         mean=stats["mean"],
@@ -94,10 +88,14 @@ def _calculate_default_statistics(config, output_file=None):
     num_samples, timesteps, nx, ny, channels = data.shape
     print(f"Dataset shape: {data.shape}")
 
-    # Get training ratio from config
     dataset_params = config.get("dataset_params", {})
     num_train = dataset_params.get("num_train", 0)
     num_test = dataset_params.get("num_test", 0)
+
+    sub_t = dataset_params.get("sub_t", 1)  # Default to 1 (no subsampling)
+    sub_x = dataset_params.get("sub_x", 1)  # Default to 1 (no subsampling)
+    print(f"Using temporal subsampling factor: {sub_t}")
+    print(f"Using spatial subsampling factor: {sub_x}")
 
     if num_train <= 0 or num_test <= 0:
         raise ValueError("Invalid 'num_train' or 'num_test' values in config file")
@@ -105,8 +103,7 @@ def _calculate_default_statistics(config, output_file=None):
     train_ratio = num_train / (num_train + num_test)
     print(f"Using train_ratio: {train_ratio}")
 
-    # Use the same random seed as in your dataset.py
-    seed = dataset_params.get("seed", 42)  # Default seed if not specified
+    seed = dataset_params.get("seed", 42)
     print(f"Using random seed: {seed}")
 
     # Apply the same permutation logic as in dataset.py
@@ -117,8 +114,13 @@ def _calculate_default_statistics(config, output_file=None):
 
     print(f"Using {len(train_indices)} samples for statistics calculation")
 
-    # Select only training data
     train_data = data[train_indices]
+
+    # Apply subsampling
+    if sub_t > 1 or sub_x > 1:
+        print(f"Applying subsampling: sub_t={sub_t}, sub_x={sub_x}")
+        train_data = train_data[:, ::sub_t, ::sub_x, ::sub_x, :]
+        print(f"Data shape after subsampling: {train_data.shape}")
 
     # Reshape data to put channels as first dim after samples
     # (num_train_samples, channels, timesteps, nx, ny)
@@ -127,10 +129,8 @@ def _calculate_default_statistics(config, output_file=None):
     # Flatten all dimensions except for sample and channel
     train_data_flat = train_data_reshaped.reshape(len(train_indices), channels, -1)
 
-    # Calculate statistics on training data only
     stats = _calculate_channel_statistics(train_data_flat)
 
-    # Print statistics summary
     print("Calculated statistics from training data only:")
     print(f"  Mean values: {stats['mean']}")
     print(f"  Std values: {stats['std']}")
@@ -140,24 +140,19 @@ def _calculate_default_statistics(config, output_file=None):
     if config["normalization_params"]["stats_file"]:
         output_file = config["normalization_params"]["stats_file"]
 
-    # Save statistics to file if specified
     if output_file:
         _save_statistics(output_file, stats)
 
-    # Return as dictionary for compatibility
     return stats
 
 
 def _calculate_diffusion_statistics(config, output_file=None):
     """Calculate statistics for diffusion configuration type."""
-    # Get data paths from config
     train_path = config["dataset_params"]["train_path"]
     print(f"Loading diffusion data from {train_path}...")
 
-    # Load data with allow_pickle to handle dictionary data
     data = np.load(train_path, allow_pickle=True)
 
-    # Extract inputs and targets from the data dictionary
     data_dict = data.item()
     diff_inputs = data_dict["diff_inputs"]
     diff_targets = data_dict["diff_targets"]
@@ -174,22 +169,15 @@ def _calculate_diffusion_statistics(config, output_file=None):
     # Just flatten all dimensions except for sample and channel
     inputs_flat = diff_inputs.reshape(num_samples_inputs, input_channels, -1)
 
-    # Calculate statistics
     input_stats = _calculate_channel_statistics(inputs_flat)
 
-    # For targets
-    # For diffusion data, the shape is (samples, channels, timesteps, nx, ny)
     num_samples_targets = diff_targets.shape[0]
     target_channels = diff_targets.shape[1]  # Channels are already in second position
 
-    # No need to transpose as channels are already in the second dimension
-    # Just flatten all dimensions except for sample and channel
     targets_flat = diff_targets.reshape(num_samples_targets, target_channels, -1)
 
-    # Calculate statistics
     target_stats = _calculate_channel_statistics(targets_flat)
 
-    # Print statistics summary
     print("Calculated input statistics:")
     print(f"  Mean values: {input_stats['mean']}")
     print(f"  Std values: {input_stats['std']}")
@@ -202,24 +190,20 @@ def _calculate_diffusion_statistics(config, output_file=None):
     print(f"  Min values: {target_stats['min_val']}")
     print(f"  Max values: {target_stats['max_val']}")
 
-    # Get stat file paths from config
     inputs_stats_file = config["normalization_params"]["inputs_stats_file"]
     targets_stats_file = config["normalization_params"]["targets_stats_file"]
 
     # Check if the stats files are the same
     if inputs_stats_file == targets_stats_file:
         print("WARNING: Input and target stats files have the same name in the config.")
-        # Create different filenames by adding suffixes
         base_path = os.path.splitext(inputs_stats_file)[0]
         inputs_stats_file = f"{base_path}_inputs.npz"
         targets_stats_file = f"{base_path}_targets.npz"
         print(f"Using modified filenames: {inputs_stats_file} and {targets_stats_file}")
 
-    # Save statistics
     _save_statistics(inputs_stats_file, input_stats)
     _save_statistics(targets_stats_file, target_stats)
 
-    # Return as dictionary for compatibility
     return {"inputs": input_stats, "targets": target_stats}
 
 

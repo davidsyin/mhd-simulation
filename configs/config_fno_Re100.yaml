@@ -33,10 +33,10 @@ normalization_params:
   # input_norm: [1.0, 1.0, 2.5e-4]
   # output_norm: [1.0, 1.0, 2.5e-4]
 
-  # stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re100.npz"
-  #
-  # type: "minmax"
-  # feature_range: [-1, 1]
+  stats_file: "/u/skacmaz/NODs/stats/train_only_stats_Re100.npz"
+
+  type: "minmax"
+  feature_range: [-1, 1]
   #
   # type: "standard"
   # # mean: [0.0, 0.0, 0.0] # Uncomment if you want to use your own stats
@@ -54,7 +54,7 @@ dataset_params:
   num_train: 950
   num_test: 50
   seed: 42
-  sub_t: 1 # Subsampling factor for time dimension
+  sub_t: 4 # Subsampling factor for time dimension
   sub_x: 1 # Subsampling factor for spatial dimensions
 
 ###################

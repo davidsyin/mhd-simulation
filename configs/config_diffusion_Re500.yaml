@@ -6,8 +6,8 @@ model_params:
   model_type: "elucidated"  # "elucidated" or "unet"
   
   # UNet parameters
-  base_dim: 64
-  dim_mults: [1, 2, 4, 8, 8]
+  base_dim: 128
+  dim_mults: [1, 2, 3, 5, 8, 12]
   channels: 3  # Updated to match the number of selected channels [0, 2]
   self_condition: True
   learned_variance: False
@@ -18,13 +18,13 @@ model_params:
   dropout: 0.0
   
   # Attention parameters
-  attn_heads: 4  # Can be a list for different layers
-  attn_dim_head: 32  # Can be a list for different layers
+  attn_heads: 8  # Can be a list for different layers
+  attn_dim_head: 64  # Can be a list for different layers
   flash_attn: True
   
   # ElucidatedDiffusion parameters
   image_size: 128
-  num_sample_steps: 32
+  num_sample_steps: 256
   sigma_min: 0.002
   sigma_max: 80
   sigma_data: 0.5
@@ -55,7 +55,7 @@ dataset_params:
 ###################
 ## Dataloader options
 train_loader_params:
-  batch_size: 100
+  batch_size: 64
   shuffle: True
   num_workers: 1
   pin_memory: True
@@ -70,14 +70,14 @@ optimizer_params:
 
   use_scheduler: True
   scheduler_type: "cosine"
-  T_max: 10000
-  eta_min: 1.0e-6
+  T_max: 1000
+  eta_min: 5.0e-5
 
 ###################
 ## Training params
 train_params:
-  epochs: 10000
-  ckpt_path: "checkpoints/diffusion_Re500.pt"
+  epochs: 1000
+  ckpt_path: "/projects/begd/skacmaz/NODs_diffusion_checkpoints/diffusion_Re500.pt"
   load_ckpt: ""  # Leave empty to start from scratch
   is_finetune: False
   val_interval: 10

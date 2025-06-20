@@ -248,6 +248,10 @@ def train(config_path, data_path):
         # Explicitly free up memory
         torch.cuda.empty_cache()
 
+    # Load best model for final evaluation
+    print("\nLoading best model for final evaluation...")
+    load_checkpoint(train_params["ckpt_path"], model, optimizer, scheduler)
+
     # Evaluate on test set using both metrics
     test_loss, denorm_test_rel_l2, denorm_test_mse = validate_with_denorm_metrics(
         model, test_loader, criterion, device

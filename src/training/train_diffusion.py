@@ -230,6 +230,10 @@ def train(config_path, data_path=None):
     print("Training finished.")
     print(f"Training Time: {time.time() - t0:.1f}s")
 
+    # Load best model for final evaluation
+    print("\nLoading best model for final evaluation...")
+    load_checkpoint(train_params["ckpt_path"], model, optimizer, scheduler)
+
     # Final evaluation on test set
     if test_loader:
         print("\nEvaluating on test set...")

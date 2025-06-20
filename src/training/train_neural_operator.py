@@ -153,7 +153,7 @@ def train(config_path, data_path):
 
         # Validate with both normalized and denormalized metrics
         val_loss, denorm_val_rel_l2, denorm_val_mse = validate_with_denorm_metrics(
-            model, val_loader, criterion, device
+            model, val_loader, criterion, device, use_denorm=True
         )
 
         if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):

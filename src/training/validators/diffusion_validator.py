@@ -59,39 +59,40 @@ def validate_diffusion(model, val_loader, device, rel_l2_metric=None):
     return total_loss / len(val_loader)
 
 
-def validate_with_denorm_metrics_diffusion(model, val_loader, device):
+def validate_with_denorm_metrics_diffusion(model, val_loader, device, use_denorm=False):
     """
-    Validate diffusion model and calculate denormalized metrics.
+    Validate diffusion model and calculate metrics.
 
     Args:
         model: Diffusion model
         val_loader: DataLoader for validation data
         device: Device to run validation on
+        use_denorm: Whether to use denormalized metrics (default: True)
 
     Returns:
-        tuple: (val_loss, denorm_val_rel_l2, denorm_val_mse)
+        tuple: (val_loss, rel_l2, mse) where rel_l2 and mse are either normalized or denormalized
+               based on use_denorm parameter
     """
     model.eval()
     val_loss = 0.0
-    denorm_val_rel_l2 = 0.0
-    denorm_val_mse = 0.0
+    total_rel_l2 = 0.0
+    total_mse = 0.0
 
-    # Create metrics
-    rel_l2 = LpLoss(size_average=True)
-    mse = torch.nn.MSELoss()
+    rel_l2_criterion = LpLoss(size_average=True)
+    mse_criterion = torch.nn.MSELoss()
 
-    # Check if dataset has normalizer
-    has_normalizer = (
-        hasattr(val_loader.dataset, "normalizer")
-        and val_loader.dataset.normalizer is not None
-    )
-
-    # Create a copy of the normalizer to avoid modifying the original
+    # Get the appropriate normalizer
     normalizer = None
-    if has_normalizer:
-        import copy
+    if use_denorm:
+        if (
+            hasattr(val_loader.dataset, "target_normalizer")
+            and val_loader.dataset.target_normalizer is not None
+        ):
+            import copy
 
-        normalizer = copy.deepcopy(val_loader.dataset.normalizer)
+            normalizer = copy.deepcopy(val_loader.dataset.target_normalizer)
+
+    print(f"Using {'denormalized' if normalizer is not None else 'normalized'} metrics")
 
     with torch.no_grad():
         for l_fidel, h_fidel in tqdm(val_loader, desc="Validating"):
@@ -102,10 +103,10 @@ def validate_with_denorm_metrics_diffusion(model, val_loader, device):
             pred = model.sample(l_fidel)
 
             # Calculate normalized loss
-            loss = rel_l2(pred, h_fidel)
-            val_loss += loss.item()
+            norm_loss = rel_l2_criterion(pred, h_fidel)
+            val_loss += norm_loss.item()
 
-            # Calculate denormalized metrics if normalizer exists
+            # Calculate additional metrics - either denormalized or normalized
             if normalizer is not None:
                 if hasattr(normalizer, "to"):
                     normalizer = normalizer.to(device)
@@ -113,22 +114,22 @@ def validate_with_denorm_metrics_diffusion(model, val_loader, device):
                 pred_denorm = normalizer.denormalize(pred)
                 h_fidel_denorm = normalizer.denormalize(h_fidel)
 
-                denorm_l2 = rel_l2(pred_denorm, h_fidel_denorm)
-                denorm_mse = mse(pred_denorm, h_fidel_denorm)
-
-                denorm_val_rel_l2 += denorm_l2.item()
-                denorm_val_mse += denorm_mse.item()
+                rel_l2_val = rel_l2_criterion(pred_denorm, h_fidel_denorm)
+                mse_val = mse_criterion(pred_denorm, h_fidel_denorm)
             else:
-                # If no normalizer, use the normalized values
-                denorm_val_rel_l2 += loss.item()
-                denorm_val_mse += mse(pred, h_fidel).item()
+                # Use normalized values if denorm is disabled or no normalizer exists
+                rel_l2_val = norm_loss  # Already calculated
+                mse_val = mse_criterion(pred, h_fidel)
+
+            total_rel_l2 += rel_l2_val.item()
+            total_mse += mse_val.item()
 
     # Average losses
     avg_val_loss = val_loss / len(val_loader)
-    avg_denorm_val_rel_l2 = denorm_val_rel_l2 / len(val_loader)
-    avg_denorm_val_mse = denorm_val_mse / len(val_loader)
+    avg_rel_l2 = total_rel_l2 / len(val_loader)
+    avg_mse = total_mse / len(val_loader)
 
     # Free memory
     torch.cuda.empty_cache()
 
-    return avg_val_loss, avg_denorm_val_rel_l2, avg_denorm_val_mse
+    return avg_val_loss, avg_rel_l2, avg_mse

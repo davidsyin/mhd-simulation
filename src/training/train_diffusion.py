@@ -117,7 +117,9 @@ def train(config_path, data_path=None):
             and val_loader is not None
         ):
             val_loss, denorm_val_rel_l2, denorm_val_mse = (
-                validate_with_denorm_metrics_diffusion(model, val_loader, device)
+                validate_with_denorm_metrics_diffusion(
+                    model, val_loader, device, use_denorm=True
+                )
             )
 
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):

@@ -59,24 +59,27 @@ def validate(model, val_loader, criterion, device):
     return total_loss / len(val_loader)
 
 
-def validate_with_denorm_metrics(model, val_loader, criterion, device):
+def validate_with_denorm_metrics(
+    model, val_loader, criterion, device, use_denorm=False
+):
     """
-    Validate model performance and calculate denormalized MSE loss.
-    Optimized for better performance with timing measurements.
+    Validate model performance and calculate metrics.
 
     Args:
         model: Neural network model
         val_loader: DataLoader for validation data
         criterion: Loss function
         device: Device to run evaluation on
+        use_denorm: Whether to use denormalized metrics (default: True)
 
     Returns:
-        tuple: Avg(total_model_loss, total_denorm_rel_l2, total_denorm_mse)
+        tuple: (normalized_loss, rel_l2, mse) where rel_l2 and mse are either normalized or denormalized
+               based on use_denorm parameter
     """
     model.eval()
     total_model_loss = 0.0
-    total_denorm_rel_l2 = 0.0
-    total_denorm_mse = 0.0
+    total_rel_l2 = 0.0
+    total_mse = 0.0
     data_time = 0
     forward_time = 0
     denorm_time = 0
@@ -84,11 +87,12 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
     has_normalizer = (
         hasattr(val_loader.dataset, "normalizer")
         and val_loader.dataset.normalizer is not None
+        and use_denorm
     )
+
     mse_criterion = nn.MSELoss(reduction="mean")
     rel_l2 = LpLoss()
 
-    # Check if we're using physics-informed loss
     use_physics_loss = (
         hasattr(criterion, "requires_input_data") and criterion.requires_input_data
     )
@@ -121,7 +125,7 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
                 model_loss = criterion(pred, y)
                 total_model_loss += model_loss.item()
 
-            # Calculate denormalized MSE if normalizer exists
+            # Calculate additional metrics - either denormalized or normalized
             if normalizer is not None:
                 denorm_start = time.time()
                 if hasattr(normalizer, "to"):
@@ -130,26 +134,31 @@ def validate_with_denorm_metrics(model, val_loader, criterion, device):
                 pred_denorm = normalizer.denormalize(pred)
                 y_denorm = normalizer.denormalize(y)
 
-                denorm_loss_l2 = rel_l2(pred_denorm, y_denorm)
-                denorm_loss_mse = mse_criterion(pred_denorm, y_denorm)
-                total_denorm_rel_l2 += denorm_loss_l2.item()
-                total_denorm_mse += denorm_loss_mse.item()
+                rel_l2_val = rel_l2(pred_denorm, y_denorm)
+                mse_val = mse_criterion(pred_denorm, y_denorm)
                 denorm_time += time.time() - denorm_start
             else:
-                total_denorm_rel_l2 = total_model_loss
-                total_denorm_mse = total_model_loss
+                # Use normalized values if denorm is disabled or no normalizer exists
+                rel_l2_val = rel_l2(pred, y)
+                mse_val = mse_criterion(pred, y)
 
-    avg_total_model_loss = total_model_loss / len(val_loader)
-    avg_total_denorm_rel_l2 = total_denorm_rel_l2 / len(val_loader)
-    avg_total_denorm_mse = total_denorm_mse / len(val_loader)
+            total_rel_l2 += rel_l2_val.item()
+            total_mse += mse_val.item()
+
+    avg_model_loss = total_model_loss / len(val_loader)
+    avg_rel_l2 = total_rel_l2 / len(val_loader)
+    avg_mse = total_mse / len(val_loader)
 
     print(f"Validation Loop Statistics:")
     print(f"- Data transfer: {data_time:.2f}s")
     print(f"- Forward pass: {forward_time:.2f}s")
     if normalizer is not None:
         print(f"- Denormalization: {denorm_time:.2f}s")
+        print(f"- Using denormalized metrics: Yes")
+    else:
+        print(f"- Using denormalized metrics: No")
 
     print("=" * 30)
     torch.cuda.empty_cache()
 
-    return avg_total_model_loss, avg_total_denorm_rel_l2, avg_total_denorm_mse
+    return avg_model_loss, avg_rel_l2, avg_mse

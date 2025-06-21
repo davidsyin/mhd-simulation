@@ -130,14 +130,14 @@ def evaluate_checkpoint(config_path, device):
     # Evaluate on test set - this will handle both normalized and denormalized metrics
     print("\nEvaluating on test set...")
     try:
-        test_loss, denorm_test_rel_l2, denorm_test_mse = validate_with_denorm_metrics(
+        test_loss, test_rel_l2, test_mse = validate_with_denorm_metrics(
             model, test_loader, criterion, device
         )
 
         print(f"\nTest results for {os.path.basename(config_path)}:")
         print(f"- Test Loss (normalized): {test_loss:.6f}")
-        print(f"- Test Rel L2 (denormalized): {denorm_test_rel_l2:.6f}")
-        print(f"- Test MSE (denormalized): {denorm_test_mse:.6f}\n")
+        print(f"- Test Rel L2 : {test_rel_l2:.6f}")
+        print(f"- Test MSE : {test_mse:.6f}\n")
 
         reynolds_number = extract_reynolds_number(os.path.basename(config_path))
         model_variant = ""
@@ -149,8 +149,8 @@ def evaluate_checkpoint(config_path, device):
             "reynolds_number": reynolds_number,
             "model_variant": model_variant,
             "test_loss": test_loss,
-            "denorm_test_rel_l2": denorm_test_rel_l2,
-            "denorm_test_mse": denorm_test_mse,
+            "test_rel_l2": test_rel_l2,
+            "test_mse": test_mse,
             "checkpoint_epoch": checkpoint_data["epoch"],
             "validation_loss": checkpoint_data["loss"],
             "validation_denorm_rel_l2": val_rel_l2,

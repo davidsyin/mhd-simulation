@@ -58,11 +58,11 @@ def print_summary_table(results):
     print("\nSummary of results:")
     print("-" * 110)
     print(
-        f"{'Config':<30} | {'Re':<6} | {'Test Loss':<10} | {'Denorm L2':<10} | {'Denorm MSE':<10} | {'Epoch':<5}"
+        f"{'Config':<30} | {'Re':<6} | {'Test Loss':<10} | {'Rel L2':<10} | {'MSE':<10} | {'Epoch':<5}"
     )
     print("-" * 110)
     for result in results:
         print(
             f"{result['config']:<30} | {result['reynolds_number']:<6} | {result['test_loss']:<10.6f} | "
-            f"{result['denorm_test_rel_l2']:<10.6f} | {result['denorm_test_mse']:<10.6f} | {result['checkpoint_epoch']:<5}"
+            f"{result['test_rel_l2']:<10.6f} | {result['test_mse']:<10.6f} | {result['checkpoint_epoch']:<5}"
         )

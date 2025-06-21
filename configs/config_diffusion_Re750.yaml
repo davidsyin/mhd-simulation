@@ -24,7 +24,7 @@ model_params:
   
   # ElucidatedDiffusion parameters
   image_size: 128
-  num_sample_steps: 256
+  num_sample_steps: 32
   sigma_min: 0.002
   sigma_max: 80
   sigma_data: 0.5
@@ -78,7 +78,7 @@ optimizer_params:
 train_params:
   epochs: 1000
   ckpt_path: "/projects/begd/skacmaz/NODs_diffusion_checkpoints/diffusion_Re750.pt"
-  load_ckpt: ""  # Leave empty to start from scratch
+  load_ckpt: "/projects/begd/skacmaz/NODs_diffusion_checkpoints/diffusion_Re750.pt"  # Leave empty to start from scratch
   is_finetune: False
   val_interval: 10
   sample_interval: 100

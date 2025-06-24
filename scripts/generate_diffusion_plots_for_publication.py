@@ -17,9 +17,7 @@ from src.utils.config import load_config
 from src.diffusion import create_diffusion_model
 from src.data import get_diffusion_dataloaders
 from src.training.train_utils import load_checkpoint
-from src.visualization.publication_diffusion_visualizer import (
-    save_publication_diffusion_plots,
-)
+from publication_diffusion_visualizer import save_publication_diffusion_plots
 
 
 def main():

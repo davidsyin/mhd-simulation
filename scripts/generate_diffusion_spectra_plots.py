@@ -40,37 +40,31 @@ def setup_mpl_for_publication():
     """Configure matplotlib for publication-quality figures suitable for Physics Letters B."""
     mpl.rcParams.update(
         {
-            # Font settings for physics publication
             "font.family": "serif",
             "font.serif": ["Computer Modern Roman"],
-            "font.size": 14,  # Increased from 12
+            "font.size": 14,
             "mathtext.fontset": "cm",
-            # Figure settings
-            "figure.figsize": (12, 10),  # Bigger figure size
+            "figure.figsize": (12, 10),
             "figure.dpi": 300,
             "savefig.dpi": 600,
             "savefig.bbox": "tight",
             "savefig.pad_inches": 0.05,
-            # Axes settings for clear visualization
-            "axes.linewidth": 1.0,  # Thicker axes
-            "axes.labelsize": 22,  # Bigger labels
-            "axes.titlesize": 24,  # Bigger title
-            # Tick settings
-            "xtick.major.width": 1.0,  # Thicker ticks
+            "axes.linewidth": 1.0,
+            "axes.labelsize": 22,
+            "axes.titlesize": 24,
+            "xtick.major.width": 1.0,
             "ytick.major.width": 2.0,
-            "xtick.major.size": 7,  # Slightly longer ticks
+            "xtick.major.size": 7,
             "ytick.major.size": 7,
             "xtick.minor.size": 4,
             "ytick.minor.size": 4,
-            "xtick.labelsize": 18,  # Bigger tick labels
+            "xtick.labelsize": 18,
             "ytick.labelsize": 18,
-            # Legend settings
-            "legend.fontsize": 16,  # Much bigger legend text
+            "legend.fontsize": 16,
             "legend.framealpha": 0.85,
             "legend.edgecolor": "0.8",
             "legend.loc": "best",
-            # Line settings
-            "lines.linewidth": 3.0,  # Much thicker lines
+            "lines.linewidth": 3.0,
             "lines.markersize": 10,
         }
     )
@@ -134,30 +128,18 @@ def generate_combined_spectra_plot(
 
     ymax = max_energy * 2.0  # Give more room at top for legends
 
-    # Create figure with high quality settings
     plt.figure(figsize=fig_size)
 
     # Target colors (UIUC official colors)
     target_kin_color = "#13294B"  # UIUC Blue for target kinetic
     target_mag_color = "#FF552E"  # UIUC Orange for target magnetic
 
-    # PINO+Diffusion colors (vibrant with contrast to targets)
-    # Using a cross-palette approach for intuitive comparison.
-    diffusion_kin_color = "#FF552E"  # A strong, dark-ish Red to contrast with the Blue
-    # diffusion_kin_color = "#c22d2d"  # A strong, dark-ish Red to contrast with the Blue
-    diffusion_mag_color = (
-        "#13294B"  # A confident, medium Blue to contrast with the Orange
-    )
-    # diffusion_mag_color = (
-    #     "#9467bd"  # A confident, medium Blue to contrast with the Orange
-    # )
+    diffusion_kin_color = "#FF552E"
+    diffusion_mag_color = "#13294B"
 
-    # PINO-Only colors (muted versions of diffusion colors)
-    # Desaturated and lighter versions of the vibrant pair above.
     neural_op_kin_color = "#b3d2b5"  # Muted/dusty version of the Red
     neural_op_mag_color = "#a5b3d2"  # Muted/dusty version of the Blue
 
-    # Plot with appropriate scale and improved styling for physics publication
     if use_log_scale:
         # Target = solid lines, PINO+Diffusion = dashed, PINO-Only = dotted
         plt.loglog(
@@ -250,15 +232,12 @@ def generate_combined_spectra_plot(
             label=r"$E_{\mathrm{mag}}$ (PINO-Only)",
         )
 
-    # Improve axes labels with LaTeX formatting - standard for physics publications
     plt.xlabel(r"$k$", fontsize=20)
     plt.ylabel(r"$E(k)$", fontsize=20)
 
-    # Set x limit to 110 as requested
     plt.xlim(left=xmin, right=110)
     plt.ylim(bottom=ymin, top=ymax)
 
-    # Format tick labels - remove y-ticks as requested
     if use_log_scale:
         ax = plt.gca()
         # Configure x-axis
@@ -276,12 +255,10 @@ def generate_combined_spectra_plot(
         plt.gca().yaxis.set_major_formatter(NullFormatter())
         plt.gca().yaxis.set_minor_formatter(NullFormatter())
 
-    # Add grid for better readability - common in spectral analysis
     plt.grid(True, which="major", linestyle="-", linewidth=0.7, alpha=0.3)
     if use_log_scale:
         plt.grid(True, which="minor", linestyle=":", linewidth=0.3, alpha=0.15)
 
-    # Move legend to bottom left
     legend = plt.legend(
         loc="lower left",
         framealpha=0.85,
@@ -294,10 +271,8 @@ def generate_combined_spectra_plot(
 
     plt.tight_layout()
 
-    # Save the plot with high resolution required for publication
     plt.savefig(output_path, dpi=600, bbox_inches="tight", format="png")
 
-    # Also save as PDF for vector graphics (often required by journals)
     pdf_path = output_path.replace(".png", ".pdf")
     plt.savefig(pdf_path, bbox_inches="tight", format="pdf")
 
@@ -330,21 +305,16 @@ def main():
 
     args = parser.parse_args()
 
-    # Set CUDA device - matching the training pipeline setup
     os.environ["CUDA_VISIBLE_DEVICES"] = str(args.gpu)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # Enable cuDNN benchmark for better performance (matches training setting)
     torch.backends.cudnn.benchmark = True
 
-    # Create output directory
     os.makedirs(args.output_dir, exist_ok=True)
 
-    # Set up matplotlib for publication-quality figures
     setup_mpl_for_publication()
 
-    # Load config - exactly as done in training
     print("\nLoading diffusion model configuration...")
     config = load_config(args.config)
 
@@ -352,25 +322,21 @@ def main():
     for key, value in config["model_params"].items():
         print(f"{key}: {value}")
 
-    # Create dataloaders - exactly as done in training
     print("\nCreating diffusion dataloaders...")
     train_loader, val_loader, test_loader = get_diffusion_dataloaders(
         config, num_workers=config.get("train_loader_params", {}).get("num_workers", 1)
     )
 
-    # Print data shapes - as done during training
     if val_loader:
         x_batch, y_batch = next(iter(val_loader))
         print(f"Input batch shape: {x_batch.shape}")
         print(f"Output batch shape: {y_batch.shape}\n")
 
-    # Create model - exactly as in training
     print("\nCreating diffusion model...")
     model = create_diffusion_model(config)
     model.to(device)
     print(f"Model has {sum(p.numel() for p in model.parameters())} parameters\n")
 
-    # Load checkpoint - as in training
     train_params = config["train_params"]
     checkpoint_path = train_params["ckpt_path"]
     print(f"\nLoading checkpoint from {checkpoint_path}")
@@ -380,7 +346,6 @@ def main():
         f"Checkpoint loaded from epoch {checkpoint_data['epoch']} with validation loss {checkpoint_data['loss']:.6f}\n"
     )
 
-    # Process validation and test sets
     for split_name, data_loader in [("validation", val_loader), ("test", test_loader)]:
         if data_loader is None:
             print(f"No {split_name} loader available. Skipping.")
@@ -390,7 +355,6 @@ def main():
         split_output_dir = os.path.join(args.output_dir, split_name)
         os.makedirs(split_output_dir, exist_ok=True)
 
-        # 1. Generate enhanced diffusion visualizations - EXACTLY as in training
         print(f"\nGenerating enhanced diffusion visualizations...")
         enhanced_plots_dir = save_enhanced_diffusion_plots(
             model,
@@ -405,7 +369,6 @@ def main():
         )
         print(f"Enhanced diffusion plots saved to {enhanced_plots_dir}")
 
-        # 2. Generate spectral plots if spectra directory exists
         try:
             # Load the neural operator spectral data
             spectra_filepath = os.path.join(
@@ -436,12 +399,9 @@ def main():
                 target_last = targets[-1].unsqueeze(0).to(device)
 
                 print(f"Generating diffusion model prediction for the last timestep...")
-                # Make a prediction for the last timestep (exactly as done in training)
                 diffusion_pred = model.sample(input_last)
 
-                # Calculate spectral data for the diffusion prediction
                 print("Calculating spectral data for diffusion prediction...")
-                # Get normalization info directly from the dataset
                 dataset = data_loader.dataset
                 input_normalizer = getattr(dataset, "input_normalizer", None)
                 target_normalizer = getattr(dataset, "target_normalizer", None)
@@ -511,7 +471,6 @@ def main():
 
                                 return result
 
-                            # Denormalize using our helper
                             diffusion_pred_denorm = denorm_with_appropriate_channels(
                                 diffusion_pred, target_normalizer, channel_indices
                             )
@@ -519,7 +478,6 @@ def main():
                                 target_last, target_normalizer, channel_indices
                             )
                         else:
-                            # Fallback to simple denormalization
                             diffusion_pred_denorm = target_normalizer.denormalize(
                                 diffusion_pred
                             )
@@ -537,12 +495,10 @@ def main():
                     diffusion_pred_denorm = diffusion_pred
                     target_last_denorm = target_last
 
-                # Compute energy spectra on (potentially) denormalized data
                 _, diffusion_spectra_kin, diffusion_spectra_mag = (
                     compute_energy_spectra(diffusion_pred_denorm.cpu(), dx=dx, dy=dy)
                 )
 
-                # Debug: Compare data ranges
                 print("\nData ranges for debugging:")
                 print(
                     f"Target range: [{target_last_denorm.min().item():.6f}, {target_last_denorm.max().item():.6f}]"
@@ -563,13 +519,11 @@ def main():
                         f"max={diffusion_pred_denorm[:, ch_idx].max().item():.6f}"
                     )
 
-                # Generate and save the combined plot
                 plot_path = os.path.join(
                     split_output_dir, f"{split_name}_combined_spectra.png"
                 )
                 print(f"Generating combined spectral plot and saving to {plot_path}")
 
-                # Use first simulation only from spectral analysis
                 generate_combined_spectra_plot(
                     k,
                     target_spectra_kin,
@@ -583,7 +537,6 @@ def main():
                     (10, 8),
                 )
 
-                # Save the combined data
                 combined_data = {
                     "k": k,
                     "target_spectra_kin": target_spectra_kin,

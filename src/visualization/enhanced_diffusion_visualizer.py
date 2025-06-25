@@ -6,6 +6,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.ticker import ScalarFormatter
 
+from ..utils import denormalize_with_channel_mapping
+
 
 def save_enhanced_diffusion_plots(
     model, val_loader, device, epoch, output_dir, num_samples=4, denormalize=True
@@ -36,11 +38,9 @@ def save_enhanced_diffusion_plots(
     """
     model.eval()
 
-    # Create output directory
     plots_dir = os.path.join(output_dir, "enhanced_diffusion_plots", f"epoch_{epoch}")
     os.makedirs(plots_dir, exist_ok=True)
 
-    # Get configuration information
     dataset = val_loader.dataset
     config = getattr(dataset, "config", {})
     model_params = config.get("model_params", {})
@@ -59,7 +59,6 @@ def save_enhanced_diffusion_plots(
         )
         channel_indices = list(range(min(num_channels, 3)))  # Limit to max 3 channels
 
-    # Print channel configuration for debugging
     print(f"Using channel indices: {channel_indices}")
 
     # Map channel indices to physical meaning
@@ -70,7 +69,6 @@ def save_enhanced_diffusion_plots(
     input_normalizer = getattr(dataset, "input_normalizer", None)
     target_normalizer = getattr(dataset, "target_normalizer", None)
 
-    # Get timesteps from dataset
     timesteps = getattr(dataset, "timesteps", None)
     if not timesteps:
         print(
@@ -94,11 +92,9 @@ def save_enhanced_diffusion_plots(
                     break
 
                 # Get initial and final conditions
-                # Low-fidelity conditions (model inputs)
                 initial_input = inputs[0].to(device)
                 final_input = inputs[-1].to(device)
 
-                # True high-fidelity conditions (ground truth)
                 initial_target = targets[0].to(device)
                 final_target = targets[-1].to(device)
 
@@ -120,53 +116,12 @@ def save_enhanced_diffusion_plots(
                     and target_normalizer is not None
                 ):
                     try:
-                        # For denormalization, we need to handle the channel mismatch
-                        # The normalizer has stats for all 3 channels, but our tensors may have fewer channels
-
-                        # Function to denormalize with channel mapping
-                        def denormalize_with_channel_mapping(
-                            tensor, normalizer, indices
-                        ):
-                            # Get tensor shape
-                            bs, c, *spatial_dims = tensor.shape
-
-                            # First add the singleton time dimension required by the normalizer
-                            tensor_5d = tensor.unsqueeze(2)  # (bs, c, 1, nx, ny)
-
-                            # Create a full 3-channel tensor with zeros
-                            full_tensor = torch.zeros(
-                                bs, 3, 1, *spatial_dims, device=tensor.device
-                            )
-
-                            # Place each channel in its correct position according to channel_indices
-                            for i, channel_idx in enumerate(indices):
-                                if (
-                                    i < c
-                                ):  # Only use as many channels as we have in our tensor
-                                    full_tensor[:, channel_idx] = tensor_5d[:, i]
-
-                            # Apply denormalization to the full tensor
-                            denormalized = normalizer.denormalize(full_tensor)
-
-                            # Extract only the channels we need based on original indices
-                            result = torch.zeros(
-                                bs, c, *spatial_dims, device=tensor.device
-                            )
-                            for i, channel_idx in enumerate(indices):
-                                if i < c:  # Only extract as many channels as we need
-                                    result[:, i] = denormalized[
-                                        :, channel_idx, 0
-                                    ]  # Remove time dimension
-
-                            return result
-
                         # Make sure all tensors have batch dimension
                         if len(initial_target.shape) == 3:  # (c, nx, ny)
                             initial_target = initial_target.unsqueeze(0)
                         if len(final_target.shape) == 3:  # (c, nx, ny)
                             final_target = final_target.unsqueeze(0)
 
-                        # Apply our custom denormalization to each tensor
                         initial_input_denorm = denormalize_with_channel_mapping(
                             initial_input, input_normalizer, channel_indices
                         )
@@ -192,7 +147,7 @@ def save_enhanced_diffusion_plots(
                     except Exception as e:
                         print(f"Warning: Could not denormalize: {e}")
                         print("Using normalized data instead.")
-                        # For initial condition
+
                         initial_input_denorm = initial_input
                         initial_target_denorm = (
                             initial_target.unsqueeze(0)
@@ -200,7 +155,7 @@ def save_enhanced_diffusion_plots(
                             else initial_target
                         )
                         initial_pred_denorm = initial_prediction
-                        # For final condition
+
                         final_input_denorm = final_input
                         final_target_denorm = (
                             final_target.unsqueeze(0)
@@ -210,7 +165,7 @@ def save_enhanced_diffusion_plots(
                         final_pred_denorm = final_prediction
                 else:
                     # If normalization is enabled or normalizers aren't available, use data as is
-                    # For initial condition
+
                     initial_input_denorm = initial_input
                     initial_target_denorm = (
                         initial_target.unsqueeze(0)
@@ -218,7 +173,7 @@ def save_enhanced_diffusion_plots(
                         else initial_target
                     )
                     initial_pred_denorm = initial_prediction
-                    # For final condition
+
                     final_input_denorm = final_input
                     final_target_denorm = (
                         final_target.unsqueeze(0)
@@ -227,12 +182,10 @@ def save_enhanced_diffusion_plots(
                     )
                     final_pred_denorm = final_prediction
 
-                # Convert to numpy for plotting
-                # Initial condition
                 initial_input_np = initial_input_denorm.cpu().numpy()
                 initial_target_np = initial_target_denorm.cpu().numpy()
                 initial_pred_np = initial_pred_denorm.cpu().numpy()
-                # Final condition
+
                 final_input_np = final_input_denorm.cpu().numpy()
                 final_target_np = final_target_denorm.cpu().numpy()
                 final_pred_np = final_pred_denorm.cpu().numpy()

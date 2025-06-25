@@ -13,6 +13,8 @@ from .data_utils import (
     apply_denormalization,
 )
 
+from .diffusion_tensor_normalization import denormalize_with_channel_mapping
+
 __all__ = [
     "create_wavenumbers",
     "compute_derivative",
@@ -21,4 +23,5 @@ __all__ = [
     "get_dataset_normalizer",
     "identify_data_channels",
     "apply_denormalization",
+    "denormalize_with_channel_mapping",
 ]

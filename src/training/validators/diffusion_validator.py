@@ -59,7 +59,7 @@ def validate_diffusion(model, val_loader, device, rel_l2_metric=None):
     return total_loss / len(val_loader)
 
 
-def validate_with_denorm_metrics_diffusion(model, val_loader, device, use_denorm=True):
+def validate_with_denorm_metrics_diffusion(model, val_loader, device, use_denorm=False):
     """
     Validate diffusion model performance and calculate denormalized metrics.
 

@@ -48,9 +48,8 @@ def train(config_path, data_path):
 
     batch_size = config["train_loader_params"]["batch_size"]
 
-    train_ratio = config["dataset_params"]["num_train"] / (
-        config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-    )
+    train_size = config["dataset_params"]["num_train"]
+    val_plus_test_size = config["dataset_params"]["num_test"]
     seed = config["dataset_params"].get("seed", 42)
 
     sub_t = config["dataset_params"].get("sub_t", 1)
@@ -74,7 +73,8 @@ def train(config_path, data_path):
         normalization_config=normalization_config,
         batch_size=batch_size * n_gpus,
         num_workers=config["train_loader_params"]["num_workers"],
-        train_ratio=train_ratio,
+        train_size=train_size,
+        val_plus_test_size=val_plus_test_size,
         seed=seed,
         sub_t=sub_t,
         sub_x=sub_x,

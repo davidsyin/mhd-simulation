@@ -14,7 +14,8 @@ class MHDDataset(Dataset):
         y_data,
         normalization_config=None,
         split="train",
-        train_ratio=0.95,
+        train_size=1000,
+        val_plus_test_size=200,
         seed=42,
         sub_t=1,
         sub_x=1,
@@ -30,7 +31,7 @@ class MHDDataset(Dataset):
             y_data: Full time evolution with shape (num_samples, channels, timesteps, nx, ny)
             normalization_config: Configuration dict for normalization
             split: 'train', 'val', or 'test'
-            train_ratio: Ratio of data to use for training
+            train_size: Size of the training set in samples
             seed: Random seed for reproducibility
             sub_t: Subsampling factor for time dimension
             sub_x: Subsampling factor for spatial dimensions
@@ -52,8 +53,7 @@ class MHDDataset(Dataset):
 
         # Create train/val/test indices
         indices = np.random.permutation(self.num_samples)
-        train_size = int(train_ratio * self.num_samples)
-        val_size = math.ceil((1 - train_ratio) / 2 * self.num_samples)
+        val_size = val_plus_test_size // 2
 
         if split == "train":
             self.indices = indices[:train_size]
@@ -139,7 +139,8 @@ def get_dataloaders(
     normalization_config=None,
     batch_size=1,
     num_workers=4,
-    train_ratio=0.95,
+    train_size=1000,
+    val_plus_test_size=200,
     seed=42,
     sub_t=1,
     sub_x=1,
@@ -191,7 +192,7 @@ def get_dataloaders(
     print(f"Initial conditions shape: {x_data.shape}")
     print(f"Full time evolution shape: {y_data.shape}")
 
-    print(f"\nCreating dataloaders with train_ratio={train_ratio}, seed={seed}")
+    print(f"\nCreating dataloaders with train_size={train_size}, seed={seed}")
     print(f"Subsampling factors: sub_t={sub_t}, sub_x={sub_x}")
     print(f"Datasets using random seed: {seed} for each split")
 
@@ -201,7 +202,8 @@ def get_dataloaders(
         y_data,
         normalization_config=normalization_config,
         split="train",
-        train_ratio=train_ratio,
+        train_size=train_size,
+        val_plus_test_size=val_plus_test_size,
         seed=seed,
         sub_t=sub_t,
         sub_x=sub_x,
@@ -211,7 +213,8 @@ def get_dataloaders(
         y_data,
         normalization_config=normalization_config,
         split="val",
-        train_ratio=train_ratio,
+        train_size=train_size,
+        val_plus_test_size=val_plus_test_size,
         seed=seed,
         sub_t=sub_t,
         sub_x=sub_x,
@@ -221,7 +224,8 @@ def get_dataloaders(
         y_data,
         normalization_config=normalization_config,
         split="test",
-        train_ratio=train_ratio,
+        train_size=train_size,
+        val_plus_test_size=val_plus_test_size,
         seed=seed,
         sub_t=sub_t,
         sub_x=sub_x,

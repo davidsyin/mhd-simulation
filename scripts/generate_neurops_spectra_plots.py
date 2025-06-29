@@ -328,9 +328,8 @@ def main():
 
     print("\nCreating dataloaders...")
     start_time = time.time()
-    train_ratio = config["dataset_params"]["num_train"] / (
-        config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-    )
+    train_size = config["dataset_params"]["num_train"]
+    val_plus_test_size = config["dataset_params"]["num_test"]
     seed = config["dataset_params"].get("seed", 42)
 
     train_loader, val_loader, test_loader = get_dataloaders(
@@ -338,7 +337,8 @@ def main():
         normalization_config=normalization_config,
         batch_size=1,  # Process one sample at a time for spectral analysis
         num_workers=1,
-        train_ratio=train_ratio,
+        train_size=train_size,
+        val_plus_test_size=val_plus_test_size,
         seed=seed,
         sub_t=sub_t,
         sub_x=sub_x,

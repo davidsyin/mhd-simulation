@@ -25,9 +25,8 @@ def find_best_lr(config_path, data_path, num_iter=100, start_lr=1e-7, end_lr=1.0
     print(f"Using device: {device}")
 
     # Get dataset parameters
-    train_ratio = config["dataset_params"]["num_train"] / (
-        config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-    )
+    train_size = config["dataset_params"]["num_train"]
+    val_plus_test_size = config["dataset_params"]["num_test"]
     seed = config["dataset_params"].get("seed", 42)
     batch_size = config["train_loader_params"]["batch_size"]
 
@@ -45,7 +44,8 @@ def find_best_lr(config_path, data_path, num_iter=100, start_lr=1e-7, end_lr=1.0
         normalization_config=normalization_config,
         batch_size=batch_size,
         num_workers=config["train_loader_params"]["num_workers"],
-        train_ratio=train_ratio,
+        train_size=train_size,
+        val_plus_test_size=val_plus_test_size,
         seed=seed,
     )
 

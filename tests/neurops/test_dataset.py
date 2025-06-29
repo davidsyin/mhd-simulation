@@ -26,7 +26,8 @@ def test_mhd_dataset(generate_mini_mhd_data, mini_config):
             "normalization_params": mini_config["normalization_params"]
         },
         split="train",
-        train_ratio=0.8,
+        train_size=8,
+        val_plus_test_size=2,
         seed=42,
         sub_t=1,
         sub_x=1,
@@ -74,12 +75,12 @@ def test_mhd_dataset(generate_mini_mhd_data, mini_config):
 
     # Check normalization
     assert train_dataset.normalizer is not None, "Normalizer should be initialized"
-    assert hasattr(
-        train_dataset.normalizer, "normalize"
-    ), "Normalizer should have normalize method"
-    assert hasattr(
-        train_dataset.normalizer, "denormalize"
-    ), "Normalizer should have denormalize method"
+    assert hasattr(train_dataset.normalizer, "normalize"), (
+        "Normalizer should have normalize method"
+    )
+    assert hasattr(train_dataset.normalizer, "denormalize"), (
+        "Normalizer should have denormalize method"
+    )
 
 
 def test_get_dataloaders(generate_mini_mhd_data, mini_config):
@@ -101,15 +102,15 @@ def test_get_dataloaders(generate_mini_mhd_data, mini_config):
     )
 
     # Test dataloader lengths
-    assert (
-        len(train_loader) == 4
-    ), "Train loader should have 4 batches (8 samples with batch size 2)"
-    assert (
-        len(val_loader) == 1
-    ), "Val loader should have 1 batch (1 sample with batch size 2)"
-    assert (
-        len(test_loader) == 1
-    ), "Test loader should have 1 batch (1 sample with batch size 2)"
+    assert len(train_loader) == 4, (
+        "Train loader should have 4 batches (8 samples with batch size 2)"
+    )
+    assert len(val_loader) == 1, (
+        "Val loader should have 1 batch (1 sample with batch size 2)"
+    )
+    assert len(test_loader) == 1, (
+        "Test loader should have 1 batch (1 sample with batch size 2)"
+    )
 
     # Test shape of batches - check for updated shapes
     x_batch, y_batch = next(iter(train_loader))

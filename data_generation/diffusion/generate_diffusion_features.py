@@ -72,9 +72,8 @@ def run_inference(re_number):
     model.eval()
 
     print("Creating dataloaders")
-    train_ratio = config["dataset_params"]["num_train"] / (
-        config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-    )
+    train_size = config["dataset_params"]["num_train"]
+    val_plus_test_size = config["dataset_params"]["num_test"]
     seed = config["dataset_params"].get("seed", 42)
     sub_t = config["dataset_params"].get("sub_t", 1)
     sub_x = config["dataset_params"].get("sub_x", 1)
@@ -94,7 +93,8 @@ def run_inference(re_number):
         normalization_config=normalization_config,
         batch_size=batch_size,
         num_workers=4,
-        train_ratio=train_ratio,
+        train_size=train_size,
+        val_plus_test_size=val_plus_test_size,
         seed=seed,
         sub_t=sub_t,
         sub_x=sub_x,

@@ -90,18 +90,14 @@ def _calculate_default_statistics(config, output_file=None):
 
     dataset_params = config.get("dataset_params", {})
     num_train = dataset_params.get("num_train", 0)
-    num_test = dataset_params.get("num_test", 0)
 
     sub_t = dataset_params.get("sub_t", 1)  # Default to 1 (no subsampling)
     sub_x = dataset_params.get("sub_x", 1)  # Default to 1 (no subsampling)
     print(f"Using temporal subsampling factor: {sub_t}")
     print(f"Using spatial subsampling factor: {sub_x}")
 
-    if num_train <= 0 or num_test <= 0:
-        raise ValueError("Invalid 'num_train' or 'num_test' values in config file")
-
-    train_ratio = num_train / (num_train + num_test)
-    print(f"Using train_ratio: {train_ratio}")
+    if num_train <= 0:
+        raise ValueError("Invalid 'num_train' value in config file")
 
     seed = dataset_params.get("seed", 42)
     print(f"Using random seed: {seed}")
@@ -109,7 +105,7 @@ def _calculate_default_statistics(config, output_file=None):
     # Apply the same permutation logic as in dataset.py
     np.random.seed(seed)
     indices = np.random.permutation(num_samples)
-    train_size = int(train_ratio * num_samples)
+    train_size = num_train
     train_indices = indices[:train_size]
 
     print(f"Using {len(train_indices)} samples for statistics calculation")

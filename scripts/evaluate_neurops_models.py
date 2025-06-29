@@ -78,12 +78,11 @@ def evaluate_checkpoint(config_path, device):
     sub_t = config["dataset_params"].get("sub_t", 1)
     sub_x = config["dataset_params"].get("sub_x", 1)
 
-    train_ratio = config["dataset_params"]["num_train"] / (
-        config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-    )
+    train_size = config["dataset_params"]["num_train"]
+    val_plus_test_size = config["dataset_params"]["num_test"]
     seed = config["dataset_params"].get("seed", 42)
 
-    print(f"Creating dataloaders with train_ratio={train_ratio}, seed={seed}")
+    print(f"Creating dataloaders with train_size={train_size}, seed={seed}")
     print(f"Subsampling factors: sub_t={sub_t}, sub_x={sub_x}")
 
     try:
@@ -92,7 +91,8 @@ def evaluate_checkpoint(config_path, device):
             normalization_config=normalization_config,
             batch_size=1,  # Use batch size 1 for evaluation
             num_workers=1,
-            train_ratio=train_ratio,
+            train_size=train_size,
+            val_plus_test_size=val_plus_test_size,
             seed=seed,
             sub_t=sub_t,
             sub_x=sub_x,

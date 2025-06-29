@@ -30,10 +30,8 @@ def test_full_pipeline(mini_config_path, generate_mini_mhd_data, device):
         normalization_config={"normalization_params": config["normalization_params"]},
         batch_size=config["train_loader_params"]["batch_size"],
         num_workers=config["train_loader_params"]["num_workers"],
-        train_ratio=config["dataset_params"]["num_train"]
-        / (
-            config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-        ),
+        train_size=config["dataset_params"]["num_train"],
+        val_plus_test_size=config["dataset_params"]["num_test"],
         seed=config["dataset_params"]["seed"],
         sub_t=config["dataset_params"].get("sub_t", 1),
         sub_x=config["dataset_params"].get("sub_x", 1),
@@ -217,7 +215,8 @@ def test_integration_with_custom_tfno(tfno_3d_config, generate_mini_mhd_data, de
         y_data,
         normalization_config={"normalization_params": config["normalization_params"]},
         split="val",
-        train_ratio=0.5,  # Doesn't matter for this test
+        train_size=8,  # Doesn't matter for this test
+        val_plus_test_size=2,
         seed=42,
     )
 
@@ -274,7 +273,8 @@ def test_integration_with_tfno_neuralop(
         normalization_config={"normalization_params": config["normalization_params"]},
         batch_size=2,
         num_workers=0,
-        train_ratio=0.8,
+        train_size=8,
+        val_plus_test_size=2,
         seed=42,
     )
 
@@ -333,10 +333,8 @@ def test_integration(mini_config_path, generate_mini_mhd_data, device):
         normalization_config={"normalization_params": config["normalization_params"]},
         batch_size=config["train_loader_params"]["batch_size"],
         num_workers=config["train_loader_params"]["num_workers"],
-        train_ratio=config["dataset_params"]["num_train"]
-        / (
-            config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-        ),
+        train_size=config["dataset_params"]["num_train"],
+        val_plus_test_size=config["dataset_params"]["num_test"],
         seed=config["dataset_params"]["seed"],
     )
 

@@ -137,8 +137,8 @@ def generate_combined_spectra_plot(
     diffusion_kin_color = "#FF552E"
     diffusion_mag_color = "#13294B"
 
-    neural_op_kin_color = "#7fd97f"  # Muted/dusty version of the Red
-    neural_op_mag_color = "#6f94f2"  # Muted/dusty version of the Blue
+    neural_op_kin_color = "#7fd97f"  # Fresh, punchy green
+    neural_op_mag_color = "#6f94f2"  # Bright, lively periwinkle-blue
 
     if use_log_scale:
         # Target = solid lines, PINO+Diffusion = dashed, PINO-Only = dotted

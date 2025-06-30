@@ -50,7 +50,7 @@ def setup_mpl_for_publication():
             "savefig.bbox": "tight",
             "savefig.pad_inches": 0.05,
             "axes.linewidth": 1.0,
-            "axes.labelsize": 22,
+            "axes.labelsize": 26,
             "axes.titlesize": 24,
             "xtick.major.width": 1.0,
             "ytick.major.width": 2.0,
@@ -137,8 +137,8 @@ def generate_combined_spectra_plot(
     diffusion_kin_color = "#FF552E"
     diffusion_mag_color = "#13294B"
 
-    neural_op_kin_color = "#b3d2b5"  # Muted/dusty version of the Red
-    neural_op_mag_color = "#a5b3d2"  # Muted/dusty version of the Blue
+    neural_op_kin_color = "#7fd97f"  # Muted/dusty version of the Red
+    neural_op_mag_color = "#6f94f2"  # Muted/dusty version of the Blue
 
     if use_log_scale:
         # Target = solid lines, PINO+Diffusion = dashed, PINO-Only = dotted
@@ -147,14 +147,14 @@ def generate_combined_spectra_plot(
             target_spectra_kin,
             color=target_kin_color,
             linestyle="-",
-            label=r"$E_{\mathrm{kin}}$ (Target)",
+            label=r"$E_{\mathrm{kin}}$ (Ground Truth)",
         )
         plt.loglog(
             k,
             target_spectra_mag,
             color=target_mag_color,
             linestyle="-",
-            label=r"$E_{\mathrm{mag}}$ (Target)",
+            label=r"$E_{\mathrm{mag}}$ (Ground Truth)",
         )
 
         plt.loglog(
@@ -192,14 +192,14 @@ def generate_combined_spectra_plot(
             target_spectra_kin,
             color=target_kin_color,
             linestyle="-",
-            label=r"$E_{\mathrm{kin}}$ (Target)",
+            label=r"$E_{\mathrm{kin}}$ (Ground Truth)",
         )
         plt.plot(
             k,
             target_spectra_mag,
             color=target_mag_color,
             linestyle="-",
-            label=r"$E_{\mathrm{mag}}$ (Target)",
+            label=r"$E_{\mathrm{mag}}$ (Ground Truth)",
         )
 
         plt.plot(
@@ -232,8 +232,8 @@ def generate_combined_spectra_plot(
             label=r"$E_{\mathrm{mag}}$ (PINO-Only)",
         )
 
-    plt.xlabel(r"$k$", fontsize=20)
-    plt.ylabel(r"$E(k)$", fontsize=20)
+    plt.xlabel(r"$k$")
+    plt.ylabel(r"$E(k)$")
 
     plt.xlim(left=xmin, right=110)
     plt.ylim(bottom=ymin, top=ymax)

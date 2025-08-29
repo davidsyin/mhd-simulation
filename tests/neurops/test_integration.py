@@ -214,9 +214,9 @@ def test_integration_with_custom_tfno(tfno_3d_config, generate_mini_mhd_data, de
         x_data,
         y_data,
         normalization_config={"normalization_params": config["normalization_params"]},
-        split="val",
-        train_size=8,  # Doesn't matter for this test
-        val_plus_test_size=2,
+        split="train",  # Use train split instead of val to ensure we get samples
+        train_size=2,  # Since we only have 2 samples
+        val_plus_test_size=0,  # No val/test needed for this test
         seed=42,
     )
 

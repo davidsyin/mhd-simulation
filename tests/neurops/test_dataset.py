@@ -41,7 +41,8 @@ def test_mhd_dataset(generate_mini_mhd_data, mini_config):
             "normalization_params": mini_config["normalization_params"]
         },
         split="val",
-        train_ratio=0.8,
+        train_size=8,
+        val_plus_test_size=2,
         seed=42,
         sub_t=1,
         sub_x=1,
@@ -55,7 +56,8 @@ def test_mhd_dataset(generate_mini_mhd_data, mini_config):
             "normalization_params": mini_config["normalization_params"]
         },
         split="test",
-        train_ratio=0.8,
+        train_size=8,
+        val_plus_test_size=2,
         seed=42,
         sub_t=1,
         sub_x=1,
@@ -95,7 +97,8 @@ def test_get_dataloaders(generate_mini_mhd_data, mini_config):
         },
         batch_size=2,
         num_workers=0,
-        train_ratio=0.8,
+        train_size=8,
+        val_plus_test_size=2,
         seed=42,
         sub_t=1,
         sub_x=1,
@@ -141,10 +144,8 @@ def test_dataset_with_config(generate_mini_mhd_data, mini_config_path):
         normalization_config={"normalization_params": config["normalization_params"]},
         batch_size=config["train_loader_params"]["batch_size"],
         num_workers=config["train_loader_params"]["num_workers"],
-        train_ratio=config["dataset_params"]["num_train"]
-        / (
-            config["dataset_params"]["num_train"] + config["dataset_params"]["num_test"]
-        ),
+        train_size=config["dataset_params"]["num_train"],
+        val_plus_test_size=config["dataset_params"]["num_test"],
         seed=config["dataset_params"]["seed"],
         sub_t=config["dataset_params"].get("sub_t", 1),
         sub_x=config["dataset_params"].get("sub_x", 1),

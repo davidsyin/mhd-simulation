@@ -34,6 +34,7 @@ from src.visualization.spectra_plots import compute_energy_spectra
 from src.visualization.enhanced_diffusion_visualizer import (
     save_enhanced_diffusion_plots,
 )
+from src.utils.diffusion_tensor_normalization import denormalize_with_channel_mapping
 
 
 def setup_mpl_for_publication():
@@ -424,57 +425,13 @@ def main():
                                 range(min(diffusion_pred.shape[1], 3))
                             )
 
-                        # For denormalization, try to follow dataset's approach
+                        # For denormalization, use the utility function
                         if hasattr(dataset, "prepare_diffusion_input"):
                             # This will handle specific channel indices if needed
-                            def denorm_with_appropriate_channels(
-                                tensor, normalizer, indices
-                            ):
-                                # Create time dimension expected by normalizer
-                                tensor_with_time = tensor.unsqueeze(
-                                    2
-                                )  # [B, C, 1, H, W]
-
-                                # If we need to handle specific channels
-                                if indices is not None:
-                                    # Create full 3-channel tensor
-                                    bs, c, _, h, w = tensor_with_time.shape
-                                    full_tensor = torch.zeros(
-                                        bs, 3, 1, h, w, device=tensor.device
-                                    )
-
-                                    # Place channels in correct positions
-                                    for i, channel_idx in enumerate(indices):
-                                        if i < c:
-                                            full_tensor[:, channel_idx] = (
-                                                tensor_with_time[:, i]
-                                            )
-
-                                    # Denormalize the full tensor
-                                    denorm_tensor = normalizer.denormalize(full_tensor)
-
-                                    # Extract only the needed channels
-                                    result = torch.zeros(
-                                        bs, c, h, w, device=tensor.device
-                                    )
-                                    for i, channel_idx in enumerate(indices):
-                                        if i < c:
-                                            result[:, i] = denorm_tensor[
-                                                :, channel_idx, 0
-                                            ]
-                                else:
-                                    # Simpler case - just denormalize
-                                    denorm_tensor = normalizer.denormalize(
-                                        tensor_with_time
-                                    )
-                                    result = denorm_tensor.squeeze(2)  # Remove time dim
-
-                                return result
-
-                            diffusion_pred_denorm = denorm_with_appropriate_channels(
+                            diffusion_pred_denorm = denormalize_with_channel_mapping(
                                 diffusion_pred, target_normalizer, channel_indices
                             )
-                            target_last_denorm = denorm_with_appropriate_channels(
+                            target_last_denorm = denormalize_with_channel_mapping(
                                 target_last, target_normalizer, channel_indices
                             )
                         else:

@@ -48,8 +48,8 @@ def train(config_path, data_path):
 
     batch_size = config["train_loader_params"]["batch_size"]
 
-    train_size = config["dataset_params"]["num_train"]
-    val_plus_test_size = config["dataset_params"]["num_test"]
+    train_size = config["dataset_params"]["train_size"]
+    val_plus_test_size = config["dataset_params"]["val_plus_test_size"]
     seed = config["dataset_params"].get("seed", 42)
 
     sub_t = config["dataset_params"].get("sub_t", 1)

@@ -52,9 +52,8 @@ dataset_params:
   # data_dir: "/work/hdd/begd/skacmaz/NODs_mhd_data_Re100/"
   # data_file: "mhd_data_3channel_Re100.npy"
   name: "MHD_TFNO3d"
-  num: 1000
-  num_train: 950
-  num_test: 50
+  train_size: 800
+  val_plus_test_size: 200
   seed: 42
   sub_t: 1 # Subsampling factor for time dimension
   sub_x: 1 # Subsampling factor for spatial dimensions

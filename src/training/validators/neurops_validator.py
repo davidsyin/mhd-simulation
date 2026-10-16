@@ -105,6 +105,7 @@ def validate_with_denorm_metrics(
         normalizer = copy.deepcopy(val_loader.dataset.normalizer)
 
     with torch.no_grad():
+        count = 0
         for x, y in tqdm(val_loader, desc="Validating"):
             # Transfer data with non_blocking=True for better performance
             data_start = time.time()
@@ -116,6 +117,10 @@ def validate_with_denorm_metrics(
             x = x.contiguous()  # Ensure input is contiguous
             pred = model(x)
             forward_time += time.time() - forward_start
+            torch.save(x, f"results/x_tfno_Re750_{count}.pt")
+            torch.save(y, f"results/y_tfno_Re750_{count}.pt")
+            torch.save(pred, f"results/pred_tfno_Re750_{count}.pt")
+            count += 1
 
             # Calculate normalized loss (used for training)
             if use_physics_loss:

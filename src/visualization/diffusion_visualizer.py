@@ -39,14 +39,25 @@ def save_diffusion_samples(
             return tensor
 
         # Create comparison grid: low-fidelity input, high-fidelity target, model prediction
-        comparison = torch.cat(
-            [
-                prepare_for_vis(l_fidel_samples),
-                prepare_for_vis(h_fidel_samples),
-                prepare_for_vis(samples),
-            ],
-            dim=0,
-        )
+        try:
+            comparison = torch.cat(
+                [
+                    prepare_for_vis(l_fidel_samples),
+                    prepare_for_vis(h_fidel_samples),
+                    prepare_for_vis(samples),
+                ],
+                dim=0,
+            )
+        except:
+            # print(l_fidel_samples.shape, h_fidel_samples.shape, samples.shape)
+            comparison = torch.cat(
+                [
+                    prepare_for_vis(l_fidel_samples[:,:,0:1]),
+                    prepare_for_vis(h_fidel_samples),
+                    prepare_for_vis(samples),
+                ],
+                dim=0,
+            )
 
         # Normalize for better visualization if requested
         if normalize:

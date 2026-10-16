@@ -1,32 +1,8 @@
-.env
-
-*.ipynb
-
+model_checkpoints/
+other/
+results/
+data/
+checkpoints/
+*.ipynb_checkpoints
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-*.pt
-*.npy
-
-# Ignore specific directories
-.ropeproject/
-help_ood_down/
-Legacy/
-Analysis/.[tp][nx][tg]
-checkpoints/
-lr_finder_results/
-Debug_plots/
-
-# Ignore all logs
-*logs/
-logs*/
-log.txt
-
-# Ignore all TensorBoard event files
-events.out.tfevents*
-
-# Ignore job submission scripts
-*.sh
-*.slurm

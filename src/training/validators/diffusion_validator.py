@@ -108,11 +108,23 @@ def validate_with_denorm_metrics_diffusion(model, val_loader, device, use_denorm
             x = x.to(device, non_blocking=True)
             y = y.to(device, non_blocking=True)
 
-            # Get model prediction
-            pred = model.sample(x)
+            # # Get model prediction
+            torch.save(x, f"results/x_data_Re750_{count}.pt")
+            # if count <= 50:
+            #     count += 1
+            #     continue
+            # print(1/0)
+            pred = model.sample_using_dpmpp(x)
 
             # Calculate normalized loss
             norm_loss = mse_criterion(pred, y)
+            torch.save(pred, f"results/pred_data_Re750_{count}.pt")
+            torch.save(y, f"results/y_data_Re750_{count}.pt")
+            # if count == 19:
+            #     break
+            # torch.save(pred, "pred.pt")
+            # print(norm_loss)
+            # print(1/0)
             total_norm_loss += norm_loss.item()
 
             # Calculate denormalized metrics if requested

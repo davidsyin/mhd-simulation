@@ -9,13 +9,11 @@ import torch.nn.functional as F
 from torch import Tensor
 
 import physicsnemo  # noqa: F401 for docs
-import physicsnemo.models.layers as layers
+import physicsnemo.nn as layers
 from .layers import FactorizedSpectralConv3d
 
 
-from physicsnemo.models.meta import ModelMetaData
 from physicsnemo.models.mlp import FullyConnected
-from physicsnemo.models.module import Module
 
 
 class TFNO3DEncoder(nn.Module):

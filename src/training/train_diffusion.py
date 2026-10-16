@@ -28,6 +28,9 @@ def train(config_path, data_path=None):
         config_path: Path to configuration file
         data_path: Path to dataset file (optional, overrides config)
     """
+    # for i in range(5):
+    #     print(i)
+    #     time.sleep(60)
     # Set CUDA benchmark for better performance
     torch.backends.cudnn.benchmark = True
 
@@ -73,6 +76,7 @@ def train(config_path, data_path=None):
 
     optimizer = create_optimizer(model.parameters(), config)
     print(f"Using {config['optimizer_params']['optimizer_type']} optimizer\n")
+    print("opt", optimizer)
 
     scheduler = create_scheduler(optimizer, config)
     scheduler_type = config["optimizer_params"].get("scheduler_type", "dummy")
@@ -82,21 +86,40 @@ def train(config_path, data_path=None):
     num_epochs = train_params.get("epochs", 1000)
 
     start_epoch, best_val_loss = 0, float("inf")
+    # best_val_loss = 0.01406
     best_denorm_val_rel_l2 = float("inf")
     best_denorm_val_mse = float("inf")
 
     if train_params.get("load_ckpt") and os.path.exists(train_params["load_ckpt"]):
         print(f"Loading checkpoint from {train_params['load_ckpt']}")
+        checkpoint_load_params = train_params.get("checkpoint_load", {})
         checkpoint_data = load_checkpoint(
-            train_params["load_ckpt"], model, optimizer, scheduler
+            train_params["load_ckpt"],
+            model,
+            optimizer,
+            scheduler,
+            input_channel_map=checkpoint_load_params.get(
+                "input_channel_map", train_params.get("input_channel_map")
+            ),
+            input_channel_keys=checkpoint_load_params.get(
+                "input_channel_keys", train_params.get("input_channel_keys")
+            ),
+            strict=checkpoint_load_params.get(
+                "strict", train_params.get("strict_load", True)
+            ),
+            skip_mismatched=checkpoint_load_params.get(
+                "skip_mismatched", train_params.get("skip_mismatched")
+            ),
         )
 
         if not train_params.get("is_finetune", False):
             start_epoch = checkpoint_data["epoch"]
-            best_val_loss = checkpoint_data["loss"]
-            best_denorm_val_rel_l2 = checkpoint_data.get(
-                "denorm_loss_rel_l2", float("inf")
-            )
+            # best_val_loss = checkpoint_data["loss"]
+            # best_val_loss = checkpoint_data.get(
+            #     "denorm_loss_rel_l2", float("inf")
+            # )
+            best_val_loss = float("inf")
+            best_denorm_val_rel_l2 = float("inf")
             best_denorm_val_mse = checkpoint_data.get("denorm_loss_mse", float("inf"))
             start_epoch += 1  # Start from the next epoch
 
@@ -105,22 +128,48 @@ def train(config_path, data_path=None):
     print("\nStarting diffusion training loop...")
     torch.cuda.empty_cache()  # Clear memory before starting
 
+    # start_epoch=398
     for epoch in range(start_epoch, num_epochs):
         torch.backends.cudnn.benchmark = True
         epoch_start_time = time.time()
 
-        train_loss = train_epoch_diffusion(model, train_loader, optimizer, device)
+        # print("epoch", epoch)
+        # print("best val", best_val_loss)
+        # train_loss = train_epoch_diffusion(model, train_loader, optimizer, device)
 
+        val_loss, denorm_val_rel_l2, denorm_val_mse = (
+            validate_with_denorm_metrics_diffusion(
+                model, val_loader, device, use_denorm=True
+            )
+        )
+        print("val_loss", val_loss)
+        print(1/0)
+        
+
+        # if epoch % 5 == 0:
+        
+        #     save_checkpoint(
+        #         model,
+        #         optimizer,
+        #         epoch,
+        #         best_val_loss,
+        #         scheduler,
+        #         f"model_checkpoints/diffusion_2_newA_epoch{epoch}_Re1000.pt",
+        #         denorm_loss_rel_l2=1234.0,
+        #         denorm_loss_mse=1234.0,
+        #     )
+        
         if (
-            epoch != 0
-            and epoch % train_params.get("val_interval", 10) == 0
+            epoch % train_params.get("val_interval", 2) == 0
             and val_loader is not None
         ):
             val_loss, denorm_val_rel_l2, denorm_val_mse = (
                 validate_with_denorm_metrics_diffusion(
-                    model, val_loader, device, use_denorm=True
+                    model, test_loader, device, use_denorm=True
                 )
             )
+
+            print("val_loss", denorm_val_rel_l2, best_val_loss)
 
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                 scheduler.step(val_loss)
@@ -128,9 +177,10 @@ def train(config_path, data_path=None):
                 scheduler.step()
 
             # Save the model if validation loss is improved
-            if val_loss < best_val_loss:
-                best_val_loss = val_loss
+            if denorm_val_rel_l2 < best_val_loss:
+                best_val_loss = denorm_val_rel_l2
 
+                print("Val loss", val_loss)
                 save_checkpoint(
                     model,
                     optimizer,
@@ -195,7 +245,7 @@ def train(config_path, data_path=None):
         # Generate and save samples periodically
         wandb_config = config.get("wandb_params", {})
         if (
-            epoch % wandb_config.get("wandb_plot_freq", 50) == 0
+            epoch % wandb_config.get("wandb_plot_freq", 2) == 0
             or epoch == 0
             or epoch == num_epochs - 1
         ) and val_loader is not None:
@@ -204,7 +254,7 @@ def train(config_path, data_path=None):
                 model,
                 val_loader,
                 device,
-                epoch,
+                epoch+110,
                 log_dir,
                 num_samples=wandb_config.get("wandb_num_plots", 4),
                 normalize=train_params.get("norm_torchvision", True),
@@ -215,14 +265,14 @@ def train(config_path, data_path=None):
                 model,
                 val_loader,
                 device,
-                epoch,
+                epoch+110,
                 log_dir,
                 num_samples=min(4, wandb_config.get("wandb_num_plots", 4)),
                 denormalize=train_params.get("denorm_enhanced_vis", True),
             )
 
             # Log to tensorboard
-            tb_writer.add_images("Samples_Comparison", comparison, epoch)
+            # tb_writer.add_images("Samples_Comparison", comparison, epoch)
 
         print("=" * 110)
         print("\n")

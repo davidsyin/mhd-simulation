@@ -28,6 +28,10 @@ def train_epoch_diffusion(model, train_loader, optimizer, device):
         data_start = time.time()
         l_fidel = l_fidel.to(device, non_blocking=True)
         h_fidel = h_fidel.to(device, non_blocking=True)
+        # print(l_fidel.shape, h_fidel.shape)
+        # torch.save(l_fidel, "l_fidel.pt")
+        # torch.save(h_fidel, "h_fidel.pt")
+        # print(1/0)
         data_time += time.time() - data_start
 
         optimizer.zero_grad(set_to_none=True)

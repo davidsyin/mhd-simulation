@@ -46,8 +46,9 @@ class MinMaxNormalization(nn.Module):
         if self.min_val is None or self.max_val is None:
             return x
 
-        min_val = self.min_val.to(x.device).view(1, -1, 1, 1, 1)
-        max_val = self.max_val.to(x.device).view(1, -1, 1, 1, 1)
+        shape = [1, -1] + [1] * (x.dim() - 2)
+        min_val = self.min_val.to(x.device).view(*shape)
+        max_val = self.max_val.to(x.device).view(*shape)
 
         x_std = (x - min_val) / (max_val - min_val + self.eps)
 
@@ -61,8 +62,9 @@ class MinMaxNormalization(nn.Module):
         if self.min_val is None or self.max_val is None:
             return x
 
-        min_val = self.min_val.to(x.device).view(1, -1, 1, 1, 1)
-        max_val = self.max_val.to(x.device).view(1, -1, 1, 1, 1)
+        shape = [1, -1] + [1] * (x.dim() - 2)
+        min_val = self.min_val.to(x.device).view(*shape)
+        max_val = self.max_val.to(x.device).view(*shape)
 
         x_std = (x - self.feature_range[0]) / (
             self.feature_range[1] - self.feature_range[0]

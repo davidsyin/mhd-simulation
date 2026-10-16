@@ -9,6 +9,34 @@ from matplotlib.ticker import ScalarFormatter
 from ..utils import denormalize_with_channel_mapping
 
 
+def _ensure_batched(tensor):
+    """Add a batch dimension for single image/grid or point-array samples."""
+    if tensor.ndim in (2, 3):
+        return tensor.unsqueeze(0)
+    return tensor
+
+
+def _as_channel_first_image(tensor, image_size):
+    """Convert channel-first grids or point arrays to (batch, channels, height, width)."""
+    if tensor.ndim == 4:
+        return tensor
+
+    if tensor.ndim != 3:
+        raise ValueError(
+            "expected tensor with shape (batch, channels, height, width) or "
+            f"(batch, points, channels), got {tuple(tensor.shape)}"
+        )
+
+    batch, num_points, channels = tensor.shape
+    if num_points != image_size * image_size:
+        raise ValueError(
+            f"point-array tensor has {num_points} points, expected "
+            f"{image_size * image_size} for image_size={image_size}"
+        )
+
+    return tensor.permute(0, 2, 1).reshape(batch, channels, image_size, image_size)
+
+
 def save_enhanced_diffusion_plots(
     model, val_loader, device, epoch, output_dir, num_samples=4, denormalize=True
 ):
@@ -99,11 +127,8 @@ def save_enhanced_diffusion_plots(
                 final_target = targets[-1].to(device)
 
                 # Add batch dimension if needed for the model
-                if len(initial_input.shape) == 3:  # If shape is (c, nx, ny)
-                    initial_input = initial_input.unsqueeze(
-                        0
-                    )  # Add batch dimension to make (1, c, nx, ny)
-                    final_input = final_input.unsqueeze(0)
+                initial_input = _ensure_batched(initial_input)
+                final_input = _ensure_batched(final_input)
 
                 # Generate predictions for both initial and final conditions
                 initial_prediction = model.sample(initial_input)
@@ -115,80 +140,83 @@ def save_enhanced_diffusion_plots(
                     and input_normalizer is not None
                     and target_normalizer is not None
                 ):
-                    try:
-                        # Make sure all tensors have batch dimension
-                        if len(initial_target.shape) == 3:  # (c, nx, ny)
-                            initial_target = initial_target.unsqueeze(0)
-                        if len(final_target.shape) == 3:  # (c, nx, ny)
-                            final_target = final_target.unsqueeze(0)
+                    # try:
+                    # Make sure all tensors have batch dimension
+                    initial_target = _ensure_batched(initial_target)
+                    final_target = _ensure_batched(final_target)
 
-                        initial_input_denorm = denormalize_with_channel_mapping(
-                            initial_input, input_normalizer, channel_indices
-                        )
+                    initial_input_denorm = denormalize_with_channel_mapping(
+                        initial_input, input_normalizer, channel_indices
+                    )
 
-                        initial_target_denorm = denormalize_with_channel_mapping(
-                            initial_target, target_normalizer, channel_indices
-                        )
+                    initial_target_denorm = denormalize_with_channel_mapping(
+                        initial_target, target_normalizer, channel_indices
+                    )
 
-                        initial_pred_denorm = denormalize_with_channel_mapping(
-                            initial_prediction, target_normalizer, channel_indices
-                        )
+                    initial_pred_denorm = denormalize_with_channel_mapping(
+                        initial_prediction, target_normalizer, channel_indices
+                    )
 
-                        final_input_denorm = denormalize_with_channel_mapping(
-                            final_input, input_normalizer, channel_indices
-                        )
-                        final_target_denorm = denormalize_with_channel_mapping(
-                            final_target, target_normalizer, channel_indices
-                        )
-                        final_pred_denorm = denormalize_with_channel_mapping(
-                            final_prediction, target_normalizer, channel_indices
-                        )
+                    final_input_denorm = denormalize_with_channel_mapping(
+                        final_input, input_normalizer, channel_indices
+                    )
+                    final_target_denorm = denormalize_with_channel_mapping(
+                        final_target, target_normalizer, channel_indices
+                    )
+                    final_pred_denorm = denormalize_with_channel_mapping(
+                        final_prediction, target_normalizer, channel_indices
+                    )
 
-                    except Exception as e:
-                        print(f"Warning: Could not denormalize: {e}")
-                        print("Using normalized data instead.")
+                    # except Exception as e:
+                    #     print(f"Warning: Could not denormalize: {e}")
+                    #     print("Using normalized data instead.")
 
-                        initial_input_denorm = initial_input
-                        initial_target_denorm = (
-                            initial_target.unsqueeze(0)
-                            if len(initial_target.shape) == 3
-                            else initial_target
-                        )
-                        initial_pred_denorm = initial_prediction
+                    #     initial_input_denorm = initial_input
+                    #     initial_target_denorm = (
+                    #         initial_target.unsqueeze(0)
+                    #         if len(initial_target.shape) == 3
+                    #         else initial_target
+                    #     )
+                    #     initial_pred_denorm = initial_prediction
 
-                        final_input_denorm = final_input
-                        final_target_denorm = (
-                            final_target.unsqueeze(0)
-                            if len(final_target.shape) == 3
-                            else final_target
-                        )
-                        final_pred_denorm = final_prediction
+                    #     final_input_denorm = final_input
+                    #     final_target_denorm = (
+                    #         final_target.unsqueeze(0)
+                    #         if len(final_target.shape) == 3
+                    #         else final_target
+                    #     )
+                    #     final_pred_denorm = final_prediction
                 else:
                     # If normalization is enabled or normalizers aren't available, use data as is
 
                     initial_input_denorm = initial_input
-                    initial_target_denorm = (
-                        initial_target.unsqueeze(0)
-                        if len(initial_target.shape) == 3
-                        else initial_target
-                    )
+                    initial_target_denorm = _ensure_batched(initial_target)
                     initial_pred_denorm = initial_prediction
 
                     final_input_denorm = final_input
-                    final_target_denorm = (
-                        final_target.unsqueeze(0)
-                        if len(final_target.shape) == 3
-                        else final_target
-                    )
+                    final_target_denorm = _ensure_batched(final_target)
                     final_pred_denorm = final_prediction
 
-                initial_input_np = initial_input_denorm.cpu().numpy()
-                initial_target_np = initial_target_denorm.cpu().numpy()
-                initial_pred_np = initial_pred_denorm.cpu().numpy()
+                image_size = getattr(model, "image_size", model_params.get("image_size", 128))
+                initial_input_np = (
+                    _as_channel_first_image(initial_input_denorm, image_size).cpu().numpy()
+                )
+                initial_target_np = (
+                    _as_channel_first_image(initial_target_denorm, image_size).cpu().numpy()
+                )
+                initial_pred_np = (
+                    _as_channel_first_image(initial_pred_denorm, image_size).cpu().numpy()
+                )
 
-                final_input_np = final_input_denorm.cpu().numpy()
-                final_target_np = final_target_denorm.cpu().numpy()
-                final_pred_np = final_pred_denorm.cpu().numpy()
+                final_input_np = (
+                    _as_channel_first_image(final_input_denorm, image_size).cpu().numpy()
+                )
+                final_target_np = (
+                    _as_channel_first_image(final_target_denorm, image_size).cpu().numpy()
+                )
+                final_pred_np = (
+                    _as_channel_first_image(final_pred_denorm, image_size).cpu().numpy()
+                )
 
                 # Number of channels in the data
                 n_channels = initial_input_np.shape[1]

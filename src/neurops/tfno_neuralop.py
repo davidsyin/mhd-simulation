@@ -2,7 +2,7 @@
 
 import torch
 import torch.nn as nn
-from neuralop.models import TFNO3d
+from neuralop.models import TFNO
 
 # from neuralop.layers.channel_mlp import LinearChannelMLP
 # from neuralop.layers.legacy_spectral_convolution import SpectralConv
@@ -13,9 +13,9 @@ from ..activations import create_activation
 
 class TFNO_neuralop(nn.Module):
     """
-    TFNO3d model wrapper.
+    TFNO model wrapper.
 
-    This class wraps the neuraloperator library's TFNO3d implementation.
+    This class wraps the neuraloperator library's TFNO implementation.
 
     Parameters
     ----------
@@ -34,7 +34,7 @@ class TFNO_neuralop(nn.Module):
 
 @register_model(model_type="tfno-neuralop")
 def create_tfno_model(model_params):
-    """Create a TFNO3d model from the neuraloperator library."""
+    """Create a 3D TFNO model from the neuraloperator library."""
 
     # Get activation function using the factory
     activation_config = model_params.get("activation", "gelu")
@@ -51,11 +51,13 @@ def create_tfno_model(model_params):
     if pad_z > 0 or pad_x > 0 or pad_y > 0:
         domain_padding = [pad_z, pad_x, pad_y]
 
-    # Create the TFNO3d model
-    model = TFNO3d(
-        n_modes_height=model_params.get("modes1", 8),
-        n_modes_width=model_params.get("modes2", 8),
-        n_modes_depth=model_params.get("modes3", 8),
+    # neuralop 2.x exposes a dimension-agnostic TFNO class instead of TFNO3d.
+    model = TFNO(
+        n_modes=(
+            model_params.get("modes1", 8),
+            model_params.get("modes2", 8),
+            model_params.get("modes3", 8),
+        ),
         hidden_channels=model_params.get("width", 8),
         in_channels=model_params.get("in_dim", 6),
         out_channels=model_params.get("out_dim", 3),

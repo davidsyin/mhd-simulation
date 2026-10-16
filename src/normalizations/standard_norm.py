@@ -43,8 +43,9 @@ class StandardNormalization(nn.Module):
         if self.mean is None or self.std is None:
             return x
 
-        mean = self.mean.to(x.device).view(1, -1, 1, 1, 1)
-        std = self.std.to(x.device).view(1, -1, 1, 1, 1)
+        shape = [1, -1] + [1] * (x.dim() - 2)
+        mean = self.mean.to(x.device).view(*shape)
+        std = self.std.to(x.device).view(*shape)
 
         return (x - mean) / (std + self.eps)
 
@@ -53,8 +54,9 @@ class StandardNormalization(nn.Module):
         if self.mean is None or self.std is None:
             return x
 
-        mean = self.mean.to(x.device).view(1, -1, 1, 1, 1)
-        std = self.std.to(x.device).view(1, -1, 1, 1, 1)
+        shape = [1, -1] + [1] * (x.dim() - 2)
+        mean = self.mean.to(x.device).view(*shape)
+        std = self.std.to(x.device).view(*shape)
 
         return x * (std + self.eps) + mean
 

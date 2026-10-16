@@ -27,6 +27,10 @@ def train(config_path, data_path):
         config_path: Path to configuration file
         data_path: Path to dataset file
     """
+
+    # while not os.path.isfile("../../data/data_psiA_Re750.npy"):
+    #     time.sleep(10)
+        
     # Set CUDA benchmark for better performance
     torch.backends.cudnn.benchmark = True
 
@@ -99,6 +103,7 @@ def train(config_path, data_path):
 
     optimizer_params = config["optimizer_params"]
     optimizer = create_optimizer(model.parameters(), config)
+    print(optimizer)
     print(f"Using {optimizer_params.get('optimizer_type')} optimizer\n")
 
     if optimizer_params.get("use_scheduler", True):
@@ -126,13 +131,16 @@ def train(config_path, data_path):
         # Unpack checkpoint data to continue the original training process
         if not train_params.get("is_finetune"):
             start_epoch = checkpoint_data["epoch"]
-            best_val_loss = checkpoint_data["loss"]
-            best_denorm_val_rel_l2 = checkpoint_data.get(
-                "denorm_loss_rel_l2", float("inf")
-            )
-            best_denorm_val_mse = checkpoint_data.get("denorm_loss_mse", float("inf"))
+            # best_val_loss = checkpoint_data["loss"]
+            best_val_loss = float("inf")
+            # best_denorm_val_rel_l2 = checkpoint_data.get(
+            #     "denorm_loss_rel_l2", float("inf")
+            # )
+            best_denorm_val_rel_l2 = float("inf")
+            best_denorm_val_mse = checkpoint_data.get("denorm_loss_mse_DONOTUSE", float("inf"))
 
             start_epoch += 1  # Start from the next epoch
+            # print(best_val_loss)
 
     # Make sure checkpoint directory exists
     os.makedirs(os.path.dirname(train_params["ckpt_path"]), exist_ok=True)
@@ -140,21 +148,23 @@ def train(config_path, data_path):
     print("\nStarting training loop...")
     torch.cuda.empty_cache()  # Clear memory before starting training
 
+    print("epoch", start_epoch)
     for epoch in range(start_epoch, train_params["epochs"]):
         torch.backends.cudnn.benchmark = True
         epoch_start_time = time.time()
 
-        if n_gpus > 1:
-            train_loss = train_epoch_distributed(
-                model, config, train_loader, optimizer, criterion, n_gpus
-            )
-        else:
-            train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
+        # if n_gpus > 1:
+        #     train_loss = train_epoch_distributed(
+        #         model, config, train_loader, optimizer, criterion, n_gpus
+        #     )
+        # else:
+        #     train_loss = train_epoch(model, train_loader, optimizer, criterion, device)
 
         # Validate with both normalized and denormalized metrics
         val_loss, denorm_val_rel_l2, denorm_val_mse = validate_with_denorm_metrics(
-            model, val_loader, criterion, device, use_denorm=True
+            model, train_loader, criterion, device, use_denorm=True
         )
+        print(1/0)
 
         if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
             scheduler.step(val_loss)
@@ -193,7 +203,7 @@ def train(config_path, data_path):
                 model,
                 val_loader,
                 device,
-                epoch,
+                epoch+90,
                 log_dir,
                 num_samples=wandb_config.get("wandb_num_plots", 2),
             )
@@ -206,7 +216,7 @@ def train(config_path, data_path):
             save_checkpoint(
                 model,
                 optimizer,
-                epoch,
+                epoch+90,
                 val_loss,
                 scheduler,
                 train_params["ckpt_path"],

@@ -5,67 +5,109 @@ import torch
 import numpy as np
 
 
+# def create_wavenumbers(
+#     nx: int, ny: int, Lx: float, Ly: float, device: torch.device
+# ) -> Tuple[torch.Tensor, torch.Tensor]:
+#     """
+#     Create wavenumbers for Fourier transforms with proper handling of odd/even grid sizes.
+
+#     Args:
+#         nx: Number of grid points in x direction
+#         ny: Number of grid points in y direction
+#         Lx: Domain length in x direction
+#         Ly: Domain length in y direction
+#         device: Device to place tensors on
+
+#     Returns:
+#         Tuple of wavenumbers (k_x, k_y) reshaped for grid operations
+#     """
+#     # Handle x-direction wavenumbers
+#     k_max_x = nx // 2
+#     if nx % 2 == 0:  # even size
+#         # For even sizes, we use -nx/2 to nx/2-1
+#         k_x_arr = torch.cat(
+#             [
+#                 torch.arange(start=0, end=k_max_x, step=1, device=device),
+#                 torch.arange(start=-k_max_x, end=0, step=1, device=device),
+#             ],
+#             0,
+#         )
+#     else:  # odd size
+#         # For odd sizes, we use -(nx-1)/2 to (nx-1)/2
+#         k_x_arr = torch.cat(
+#             [
+#                 torch.arange(start=0, end=k_max_x + 1, step=1, device=device),
+#                 torch.arange(start=-k_max_x, end=0, step=1, device=device),
+#             ],
+#             0,
+#         )
+
+#     # Handle y-direction wavenumbers
+#     k_max_y = ny // 2
+#     if ny % 2 == 0:  # even size
+#         k_y_arr = torch.cat(
+#             [
+#                 torch.arange(start=0, end=ny // 2, step=1, device=device),
+#                 torch.arange(start=-ny // 2, end=0, step=1, device=device),
+#             ],
+#             0,
+#         )
+#     else:  # odd size
+#         k_y_arr = torch.cat(
+#             [
+#                 torch.arange(start=0, end=ny // 2 + 1, step=1, device=device),
+#                 torch.arange(start=-ny // 2, end=0, step=1, device=device),
+#             ],
+#             0,
+#         )
+
+#     # Reshape to match grid dimensions (batch, time, x, y)
+#     k_x = (2 * np.pi / Lx) * k_x_arr.reshape(nx, 1).repeat(1, ny).reshape(1, 1, nx, ny)
+#     k_y = (2 * np.pi / Ly) * k_y_arr.reshape(1, ny).repeat(nx, 1).reshape(1, 1, nx, ny)
+#     kx_first = k_x.clone()
+#     ky_first = k_y.clone()
+
+#     kx_first[:,:,nx//2] = 0.0
+#     ky_first[:,:,:,ny//2] = 0.0
+#     # print(k_x, k_y)
+
+#     return k_x, k_y, kx_first, ky_first
+
 def create_wavenumbers(
-    nx: int, ny: int, Lx: float, Ly: float, device: torch.device
-) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Create wavenumbers for Fourier transforms with proper handling of odd/even grid sizes.
-
-    Args:
-        nx: Number of grid points in x direction
-        ny: Number of grid points in y direction
-        Lx: Domain length in x direction
-        Ly: Domain length in y direction
-        device: Device to place tensors on
-
-    Returns:
-        Tuple of wavenumbers (k_x, k_y) reshaped for grid operations
-    """
-    # Handle x-direction wavenumbers
-    k_max_x = nx // 2
-    if nx % 2 == 0:  # even size
-        # For even sizes, we use -nx/2 to nx/2-1
-        k_x_arr = torch.cat(
-            [
-                torch.arange(start=0, end=k_max_x, step=1, device=device),
-                torch.arange(start=-k_max_x, end=0, step=1, device=device),
-            ],
-            0,
+    nx,
+    ny,
+    Lx,
+    Ly,
+    device,
+    dtype=torch.float32,
+):
+    kx = (
+        2 * torch.pi
+        * torch.fft.fftfreq(
+            nx,
+            d=Lx / nx,
+            device=device,
+            dtype=dtype,
         )
-    else:  # odd size
-        # For odd sizes, we use -(nx-1)/2 to (nx-1)/2
-        k_x_arr = torch.cat(
-            [
-                torch.arange(start=0, end=k_max_x + 1, step=1, device=device),
-                torch.arange(start=-k_max_x, end=0, step=1, device=device),
-            ],
-            0,
-        )
+    ).reshape(1, 1, nx, 1)
 
-    # Handle y-direction wavenumbers
-    k_max_y = ny // 2
-    if ny % 2 == 0:  # even size
-        k_y_arr = torch.cat(
-            [
-                torch.arange(start=0, end=ny // 2, step=1, device=device),
-                torch.arange(start=-ny // 2, end=0, step=1, device=device),
-            ],
-            0,
+    ky = (
+        2 * torch.pi
+        * torch.fft.rfftfreq(
+            ny,
+            d=Ly / ny,
+            device=device,
+            dtype=dtype,
         )
-    else:  # odd size
-        k_y_arr = torch.cat(
-            [
-                torch.arange(start=0, end=ny // 2 + 1, step=1, device=device),
-                torch.arange(start=-ny // 2, end=0, step=1, device=device),
-            ],
-            0,
-        )
+    ).reshape(1, 1, 1, ny // 2 + 1)
 
-    # Reshape to match grid dimensions (batch, time, x, y)
-    k_x = (2 * np.pi / Lx) * k_x_arr.reshape(nx, 1).repeat(1, ny).reshape(1, 1, nx, ny)
-    k_y = (2 * np.pi / Ly) * k_y_arr.reshape(1, ny).repeat(nx, 1).reshape(1, 1, nx, ny)
+    kx_first = kx.clone()
+    ky_first = ky.clone()
 
-    return k_x, k_y
+    kx_first[:,:,nx // 2] = 0.0
+    ky_first[:,:,:,-1] = 0.0
+
+    return kx, ky, kx_first, ky_first
 
 
 def compute_derivative(u_h: torch.Tensor, k_i: torch.Tensor) -> torch.Tensor:
@@ -113,3 +155,21 @@ def compute_time_derivative(u: torch.Tensor, dt: float) -> torch.Tensor:
         Time derivative at interior time steps
     """
     return (u[:, 2:] - u[:, :-2]) / (2 * dt)
+
+
+def lowpass_filter(field: torch.Tensor, cutoff_min = 0.0, cutoff_max = 1.0) -> torch.Tensor:
+    nx, ny = field.shape[-2:]
+    freq_dtype = torch.float32
+    fx = torch.fft.fftfreq(nx, device=field.device, dtype=freq_dtype).reshape(
+        1, 1, nx, 1
+    )
+    fy = torch.fft.rfftfreq(ny, device=field.device, dtype=freq_dtype).reshape(
+        1, 1, 1, ny // 2 + 1
+    )
+    # print(fx, fy)
+    mask = ((fx.square() + fy.square()).sqrt() >= cutoff_min) * ((fx.square() + fy.square()).sqrt() <= cutoff_max)
+
+    field_h = torch.fft.rfftn(field, dim=(-2, -1))
+    while mask.ndim > field_h.ndim:
+        mask = mask.squeeze(0)
+    return torch.fft.irfftn(field_h * mask, s=(nx, ny), dim=(-2, -1))

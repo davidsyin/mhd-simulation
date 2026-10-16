@@ -36,7 +36,8 @@ class PhysicsNormalization(nn.Module):
         if self.input_norm is not None:
             # Ensure input_norm is on the same device as x
             input_norm = self.input_norm.to(x.device)
-            return x / input_norm.view(1, -1, 1, 1, 1)
+            shape = [1, -1] + [1] * (x.dim() - 2)
+            return x / input_norm.view(*shape)
         return x
 
     def denormalize(self, x):
@@ -44,7 +45,8 @@ class PhysicsNormalization(nn.Module):
         if self.output_norm is not None:
             # Ensure output_norm is on the same device as x
             output_norm = self.output_norm.to(x.device)
-            return x * output_norm.view(1, -1, 1, 1, 1)
+            shape = [1, -1] + [1] * (x.dim() - 2)
+            return x * output_norm.view(*shape)
         return x
 
     def to(self, device):

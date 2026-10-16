@@ -42,6 +42,9 @@ def save_prediction_plots(model, val_loader, device, epoch, output_dir, num_samp
             )
 
             pred = model(x)
+            torch.save(x, f"x_{epoch}.pt")
+            torch.save(y, f"y_{epoch}.pt")
+            torch.save(pred, f"pred_{epoch}.pt")
 
             x_denorm, y_denorm, pred_denorm = apply_denormalization(
                 x, y, pred, normalizer, data_channel_indices, has_grid_embeddings

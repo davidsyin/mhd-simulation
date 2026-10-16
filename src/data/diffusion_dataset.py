@@ -3,6 +3,7 @@ import torch
 import numpy as np
 from torch.utils.data import Dataset, DataLoader
 from ..normalizations import create_normalization
+import math
 
 
 class DiffusionDataset(Dataset):
@@ -34,6 +35,7 @@ class DiffusionDataset(Dataset):
         self.original_shape = None
         self.timesteps = None
 
+        print(input_normalizer, target_normalizer)
         print(f"Loading {split_name} data from {data_path}")
         data = np.load(data_path, allow_pickle=True)
         data_dict = data.item() if isinstance(data, np.ndarray) else data
@@ -51,28 +53,64 @@ class DiffusionDataset(Dataset):
         if self.timesteps:
             print(f"Timesteps per simulation: {self.timesteps}")
 
-        # Apply normalization to all channels first
-        if self.input_normalizer:
-            inputs_tensor = torch.tensor(self.inputs, dtype=torch.float32)
+        self.inputs = torch.tensor(self.inputs, dtype=torch.float32)
+        self.targets = torch.tensor(self.targets, dtype=torch.float32)
 
-            self.inputs = self.input_normalizer.normalize(inputs_tensor)
-            print(f"Applied input normalization to all channels")
+        normalize_after_prepare = self._should_normalize_after_prepare()
 
-        if self.target_normalizer:
-            targets_tensor = torch.tensor(self.targets, dtype=torch.float32)
-
-            self.targets = self.target_normalizer.normalize(targets_tensor)
-            print(f"Applied target normalization to all channels\n")
+        print("prenormalized", self.inputs.shape, self.targets.shape)
+        if not normalize_after_prepare:
+            self._apply_normalization("all channels")
 
         # Then prepare data (reshape and select channels)
         if config:
+            print("preparing", self.inputs.shape, self.targets.shape)
             self.inputs, self.targets = self.prepare_diffusion_input(
                 self.inputs, self.targets, config
             )
 
+            if normalize_after_prepare:
+                self._apply_normalization("prepared channels")
+
             # Calculate sigma_data from normalized targets if this is the training set
             if split_name == "train" and "model_params" in config:
                 self.calculate_sigma_data(config, split_name)
+
+    def _normalizer_channels(self, normalizer):
+        """Return the number of channels a normalizer is configured for."""
+        if normalizer is None:
+            return None
+
+        for attr in ("mean", "std", "min_val", "max_val", "input_norm", "output_norm"):
+            value = getattr(normalizer, attr, None)
+            if value is not None:
+                return int(value.numel())
+
+        return None
+
+    def _should_normalize_after_prepare(self):
+        """Defer normalization when config values match selected channels, not raw channels."""
+        raw_channels = self.inputs.shape[1]
+        normalizer_channels = [
+            self._normalizer_channels(self.input_normalizer),
+            self._normalizer_channels(self.target_normalizer),
+        ]
+
+        return any(
+            channel_count is not None and channel_count != raw_channels
+            for channel_count in normalizer_channels
+        )
+
+    def _apply_normalization(self, scope):
+        if self.input_normalizer:
+            self.inputs = self.input_normalizer.normalize(self.inputs)
+            print(f"Applied input normalization to {scope}")
+
+        if self.target_normalizer:
+            print("target, prenormalize", self.targets.shape)
+            self.targets = self.target_normalizer.normalize(self.targets)
+            print("targets, after", self.targets.shape)
+            print(f"Applied target normalization to {scope}\n")
 
     def calculate_sigma_data(self, config, split_name):
         """Calculate sigma_data from normalized training targets for the selected channels"""
@@ -80,11 +118,16 @@ class DiffusionDataset(Dataset):
             return
 
         targets = self.targets
+        model_channels = config.get("model_params", {}).get("channels")
 
-        channel_stds = []
-        for c in range(targets.shape[1]):
-            channel_std = targets[:, c].std().item()
-            channel_stds.append(channel_std)
+        if targets.ndim >= 3 and model_channels is not None and targets.shape[-1] == model_channels:
+            channel_stds = [
+                targets[..., c].std().item() for c in range(targets.shape[-1])
+            ]
+        else:
+            channel_stds = [
+                targets[:, c].std().item() for c in range(targets.shape[1])
+            ]
 
         # Use mean of all channel stds as sigma_data
         sigma_data = float(torch.tensor(channel_stds).mean().item())
@@ -120,40 +163,73 @@ class DiffusionDataset(Dataset):
                     f"Model expects {out_channels} channels but {len(channel_indices)} channel indices were provided"
                 )
 
-        # Get spatial dimensions from data
-        nx = x.shape[3] if len(x.shape) > 3 else 128
-        ny = x.shape[4] if len(x.shape) > 4 else 128
+        print("dataset", x.shape, y.shape)
+        if len(x.shape) == 4:
+            nsamples, in_channels, timesteps, n_points = x.shape
+            print(in_channels)
+            # _, out_channels, _, _, _ = y.shape
 
-        print(f"Preparing data with output channels={out_channels}")
-        if channel_indices is not None:
-            print(f"Using channel indices {channel_indices}")
-
-        if len(x.shape) == 5:  # (nsamples, c, t, nx, ny)
-            nsamples, in_channels, timesteps, nx, ny = x.shape
-
-            # Reshape to (nsamples*t, c, nx, ny)
-            x_reshaped = x.permute(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
-            y_reshaped = y.permute(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
+            # Reshape to (nsamples*t, c, n_points)
+            x_reshaped = x.permute(0, 2, 1, 3).reshape(-1, in_channels, n_points)
+            y_reshaped = y.permute(0, 2, 1, 3).reshape(-1, out_channels, n_points)
 
             # Handle channel selection
+            print("indices", channel_indices)
             if channel_indices is not None:
                 if isinstance(channel_indices, int):
                     channel_indices = [channel_indices]
 
-                x_processed = x_reshaped[:, channel_indices, :, :]
-                y_processed = y_reshaped[:, channel_indices, :, :]
+                x_processed = x_reshaped[:, channel_indices, :]
+                y_processed = y_reshaped[:, channel_indices, :]
             else:
-                if out_channels < in_channels:
-                    x_processed = x_reshaped[:, :out_channels, :, :]
-                    y_processed = y_reshaped[:, :out_channels, :, :]
-                else:
-                    x_processed = x_reshaped
-                    y_processed = y_reshaped
-        else:
-            # If already in correct format, just pass through
-            x_processed = x
-            y_processed = y
+                # if out_channels < in_channels:
+                #     x_processed = x_reshaped[:, :out_channels, :]
+                #     y_processed = y_reshaped[:, :out_channels, :]
+                # else:
+                #     x_processed = x_reshaped
+                #     y_processed = y_reshaped
+                x_processed = x_reshaped
+                y_processed = y_reshaped
+            x_processed = x_processed.permute(0,2,1)
+            y_processed = y_processed.permute(0,2,1)
 
+        else:        
+            # Get spatial dimensions from data
+            nx = x.shape[3] if len(x.shape) > 3 else 128
+            ny = x.shape[4] if len(x.shape) > 4 else 128
+    
+            print(f"Preparing data with output channels={out_channels}")
+            if channel_indices is not None:
+                print(f"Using channel indices {channel_indices}")
+    
+            if len(x.shape) == 5:  # (nsamples, c, t, nx, ny)
+                nsamples, in_channels, timesteps, nx, ny = x.shape
+                _, out_channels, _, _, _ = y.shape
+    
+                # Reshape to (nsamples*t, c, nx, ny)
+                x_reshaped = x.permute(0, 2, 1, 3, 4).reshape(-1, in_channels, nx, ny)
+                y_reshaped = y.permute(0, 2, 1, 3, 4).reshape(-1, out_channels, nx, ny)
+    
+                # Handle channel selection
+                if channel_indices is not None:
+                    if isinstance(channel_indices, int):
+                        channel_indices = [channel_indices]
+    
+                    x_processed = x_reshaped[:, channel_indices, :, :]
+                    y_processed = y_reshaped[:, channel_indices, :, :]
+                else:
+                    if out_channels < in_channels:
+                        x_processed = x_reshaped[:, :out_channels, :, :]
+                        y_processed = y_reshaped[:, :out_channels, :, :]
+                    else:
+                        x_processed = x_reshaped
+                        y_processed = y_reshaped
+            else:
+                # If already in correct format, just pass through
+                x_processed = x
+                y_processed = y
+
+        print("processed", x_processed.shape, y_processed.shape)
         print(f"Prepared {self.split_name} input shape: {x_processed.shape}")
         print(f"Prepared {self.split_name} target shape: {y_processed.shape}\n")
 
@@ -255,7 +331,20 @@ def get_diffusion_dataloaders(config, num_workers=4):
             print(f"Created {norm_type} normalizer for targets\n")
 
         if not input_normalizer and not target_normalizer:
-            print("\n***WARNING: No valid stats files found for normalization!***\n")
+            direct_norm_params = norm_params.copy()
+
+            if norm_type == "physics" and "input_norm" in direct_norm_params:
+                direct_norm_params.setdefault(
+                    "output_norm", direct_norm_params["input_norm"]
+                )
+
+            input_normalizer = create_normalization(
+                {"normalization_params": direct_norm_params}
+            )
+            target_normalizer = create_normalization(
+                {"normalization_params": direct_norm_params}
+            )
+            print(f"\nCreated {norm_type} normalizers from config values\n")
 
     dataset_params = config.get("dataset_params", {})
     train_path = dataset_params.get("train_path")
@@ -300,10 +389,18 @@ def get_diffusion_dataloaders(config, num_workers=4):
         )
 
     # Create dataloaders with appropriate batch sizes
+    # train_loader = DataLoader(
+    #     train_dataset,
+    #     batch_size=train_batch_size,
+    #     shuffle=True,
+    #     num_workers=num_workers,
+    #     pin_memory=True,
+    #     persistent_workers=(num_workers > 0),
+    # )
     train_loader = DataLoader(
         train_dataset,
-        batch_size=train_batch_size,
-        shuffle=True,
+        batch_size=26,
+        shuffle=False,
         num_workers=num_workers,
         pin_memory=True,
         persistent_workers=(num_workers > 0),

@@ -3,6 +3,17 @@ from typing import Any, Callable, Dict, Optional, Tuple, TypeVar, Union, cast
 import torch
 import math
 
+import os
+import torch
+import torch.special as ts
+import numpy as np
+import operator
+import matplotlib.pyplot as plt
+
+from scipy import interpolate
+from functools import reduce
+
+
 T = TypeVar("T")
 FuncType = Callable[..., Any]
 
@@ -104,3 +115,74 @@ def log(t: torch.Tensor, eps: float = 1e-20) -> torch.Tensor:
         Tensor containing the log of the input with minimum clamping
     """
     return torch.log(t.clamp(min=eps))
+
+
+def get_seed(s, printout=True, cudnn=True):
+    # rd.seed(s)
+    os.environ['PYTHONHASHSEED'] = str(s)
+    np.random.seed(s)
+    # pd.core.common.random_state(s)
+    # Torch
+    torch.manual_seed(s)
+    torch.cuda.manual_seed(s)
+    if cudnn:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(s)
+
+    message = f'''
+    os.environ['PYTHONHASHSEED'] = str({s})
+    numpy.random.seed({s})
+    torch.manual_seed({s})
+    torch.cuda.manual_seed({s})
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all({s})
+    '''
+    if printout:
+        print("\n")
+        print(f"The following code snippets have been run.")
+        print("=" * 50)
+        print(message)
+        print("=" * 50)
+
+
+
+
+def get_num_params(model):
+    '''
+    a single entry in cfloat and cdouble count as two parameters
+    see https://github.com/pytorch/pytorch/issues/57518
+    '''
+    # model_parameters = filter(lambda p: p.requires_grad, model.parameters())
+    # num_params = 0
+    # for p in model_parameters:
+    #     # num_params += np.prod(p.size()+(2,) if p.is_complex() else p.size())
+    #     num_params += p.numel() * (1 + p.is_complex())
+    # return num_params
+
+    c = 0
+    for p in list(model.parameters()):
+        c += reduce(operator.mul, list(p.size() + (2,) if p.is_complex() else p.size()))  #### there is complex weight
+    return c
+
+
+
+### x: list of tensors
+class MultipleTensors():
+    def __init__(self, x):
+        self.x = x
+
+    def to(self, device):
+        self.x = [x_.to(device) for x_ in self.x]
+        return self
+
+    def __len__(self):
+        return len(self.x)
+
+
+    def __getitem__(self, item):
+        # return torch.rand_like(self.x[item])
+        return self.x[item]

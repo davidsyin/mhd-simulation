@@ -4,6 +4,7 @@ import argparse
 import torch
 import numpy as np
 from pathlib import Path
+import time
 
 # Add the src directory to the Python path
 script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -33,21 +34,29 @@ def run_inference(re_number):
     print(f"Running inference for Re{re_number}")
     print(f"{'=' * 80}\n")
 
-    config_path = os.path.join(parent_dir, f"configs/config_tfno3d_Re{re_number}.yaml")
+    # for i in range(65):
+    #     print(i)
+    #     time.sleep(60)
+
+    parent_dir = "/home/mcwave/code/physics/DINOs"
+
+    config_path = os.path.join(parent_dir, f"configs/config_tfno3d-psiA-Re{re_number}.yaml")
     checkpoint_path = os.path.join(
         parent_dir,
-        f"checkpoints/permanent_models/tfno_Re{re_number}_6layer_8mod_subt4_minmax.pt",
+        "model_checkpoints/tfno_psiA_Re750.pt",
     )
-    output_dir = f"/projects/begd/skacmaz/NODs_diffusion_data/Re{re_number}"
+    print(checkpoint_path)
+    output_dir = f"data/diffusion/psiA_Re{re_number}_diffusion"
 
     os.makedirs(output_dir, exist_ok=True)
 
     print(f"Loading configuration from {config_path}")
     config = load_config(config_path)
 
-    data_path = (
-        config["dataset_params"]["data_dir"] + config["dataset_params"]["data_file"]
-    )
+    # data_path = (
+    #     config["dataset_params"]["data_dir"] + config["dataset_params"]["data_file"]
+    # )
+    data_path = "data/data_psiA_Re750_diffusion_2.npy"
     print(f"Data will be loaded from: {data_path}")
 
     print("Creating model from configuration")
@@ -72,8 +81,10 @@ def run_inference(re_number):
     model.eval()
 
     print("Creating dataloaders")
-    train_size = config["dataset_params"]["num_train"]
-    val_plus_test_size = config["dataset_params"]["num_test"]
+    # train_size = config["dataset_params"]["train_size"]
+    train_size=180
+    val_plus_test_size=20
+    # val_plus_test_size = config["dataset_params"]["val_plus_test_size"]
     seed = config["dataset_params"].get("seed", 42)
     sub_t = config["dataset_params"].get("sub_t", 1)
     sub_x = config["dataset_params"].get("sub_x", 1)
@@ -86,7 +97,7 @@ def run_inference(re_number):
         )
 
     # Use batch size 4 for MI100 GPU
-    batch_size = 4
+    batch_size = 1
 
     train_loader, val_loader, test_loader = get_dataloaders(
         data_path,
@@ -132,6 +143,11 @@ def run_inference(re_number):
                 data_channel_indices,
                 has_grid_embeddings,
             )
+            # print(targets_denorm.shape, preds_denorm.shape)
+            targets_denorm = targets_denorm.reshape(*targets_denorm.shape[:-2], -1)
+            preds_denorm = preds_denorm.reshape(*preds_denorm.shape[:-2], -1)
+            
+            # print(1/0)
 
             all_targets.append(targets_denorm.cpu().numpy())
             all_predictions.append(preds_denorm.cpu().numpy())
@@ -139,11 +155,14 @@ def run_inference(re_number):
             # Free memory
             del inputs, targets, preds, targets_denorm, preds_denorm
             torch.cuda.empty_cache() if torch.cuda.is_available() else None
+            # break
 
         # Concatenate results
         print(f"Concatenating {len(all_targets)} batches for {split_name} dataset")
         targets_np = np.concatenate(all_targets, axis=0)
         predictions_np = np.concatenate(all_predictions, axis=0)
+        print("targets_np", targets_np.shape)
+        print("predictions_np", predictions_np.shape)
 
         os.makedirs(output_dir, exist_ok=True)
 
@@ -173,7 +192,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--re",
         type=int,
-        choices=[100, 250, 500],
+        choices=[100, 250, 500, 750, 1000, 3000],
         required=True,
         help="Reynolds number (100, 250, or 500)",
     )

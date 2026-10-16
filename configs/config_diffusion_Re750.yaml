@@ -1,0 +1,150 @@
+config_type: "diffusion"
+
+####################
+## Model options
+model_params:
+  model_type: "elucidated"  # "elucidated" or "unet"
+  
+  # UNet parameters
+  base_dim: 128
+  dim_mults: [1, 2, 3, 5, 8, 12]
+  channels: 2  # Updated to match the number of selected channels [0, 2]
+  self_condition: True
+  learned_variance: False
+  learned_sinusoidal_cond: False
+  random_fourier_features: False
+  sinusoidal_pos_emb_theta: 10000
+  learned_sinusoidal_dim: 16
+  dropout: 0.0
+  
+  # Attention parameters
+  attn_heads: 8  # Can be a list for different layers
+  attn_dim_head: 64  # Can be a list for different layers
+  flash_attn: True
+  
+  # ElucidatedDiffusion parameters
+  image_size: 128
+  gaot_input_size: 5
+  # gaot_input_size: 4
+  use_pointwise_conditioning: True
+  pointwise_hidden_size: 128
+  pointwise_mlp_layers: 3
+  latent_tokens_size: [64, 64]
+  radius: 0.06
+  # magno_hidden_size: 128
+  # magno_mlp_layers: 3
+  # lifting_channels: 192
+  # transformer_hidden_size: 768
+  # patch_size: 2
+  # n_layers: 12
+  # n_head: 24
+  magno_hidden_size: 128
+  magno_mlp_layers: 3
+  lifting_channels: 192
+  transformer_hidden_size: 512
+  patch_size: 2
+  n_layers: 12
+  n_head: 16
+  neighbor_search_method: "auto"
+  num_sample_steps: 32
+  sigma_min: 0.002
+  sigma_max: 80
+  sigma_data: 1.0
+  rho: 7
+  P_mean: -1.2
+  P_std: 1.2
+  S_churn: 80
+  S_tmin: 0.05
+  S_tmax: 50
+  S_noise: 1.003
+
+###################
+## Normalization options at dataset level
+# normalization_params:
+#   type: "minmax"
+#   feature_range: [-1, 1]
+#   inputs_stats_file: "/u/skacmaz/NODs/stats/train_only_diffusion_inputs_stats_Re1000.npz"
+#   targets_stats_file: "/u/skacmaz/NODs/stats/train_only_diffusion_targets_stats_Re1000.npz"
+
+normalization_params:
+  type: "physics"
+  # input_norm: [1.0, 1.0, 2.5e-4]
+  # output_norm: [1.0, 1.0, 2.5e-4]
+  input_norm: [0.021676693253362907, 0.0009384952345804561]
+  output_norm: [0.021676693253362907, 0.0009384952345804561]
+  # input_norm: [0.0009708260721581244, 7.649]
+  # output_norm: [0.0009708260721581244]
+
+###################
+## Dataset options
+dataset_params:
+  # train_path: "data/diffusion/psiA_Re750/train.npy"
+  # val_path: "data/diffusion/psiA_Re750/val.npy"
+  # test_path: "data/diffusion/psiA_Re750/test.npy"
+  train_path: "data/diffusion/psiA_Re750_diffusion/train.npy"
+  val_path: "data/diffusion/psiA_Re750_diffusion/val.npy"
+  test_path: "data/diffusion/psiA_Re750_diffusion/test.npy"
+  # train_path: "data/diffusion/psiA_newA_2_Re750/train.npy"
+  # val_path: "data/diffusion/psiA_newA_2_Re750/val.npy"
+  # test_path: "data/diffusion/psiA_newA_2_Re750/test.npy"
+
+###################
+## Dataloader options
+train_loader_params:
+  batch_size: 12
+  shuffle: True
+  num_workers: 1
+  pin_memory: True
+
+###################
+## Optimizer options
+optimizer_params:
+  optimizer_type: "adamw"
+  lr: 5.0e-5
+  weight_decay: 1.0e-5
+  # lr: 1.2e-5
+  # weight_decay: 1.0e-4
+  betas: [0.9, 0.999]
+
+  use_scheduler: True
+  scheduler_type: "cosine"
+  T_max: 400
+  eta_min: 1.0e-5
+
+###################
+## Training params
+train_params:
+  epochs: 500
+  ckpt_path: "model_checkpoints/diffusion_gaotskip_diffusion_2_newA_Re750.pt" # Rexxxx_basedim_len(dim_mults)_attnheads_attndimhead_batchsize_numsamplesteps
+  # load_ckpt: "model_checkpoints/diffusion_gaotskip_diffusion_2_newA_Re750.pt"  # Leave empty to start from scratch
+  load_ckpt: "model_checkpoints/diffusion_epoch398_Re750.pt"
+  # checkpoint_load:
+  #     strict: false
+  #     input_channel_map:
+  #       - [0, 1]  # checkpoint channel 0 -> model channel 0
+  #       - [1, 0]
+  #       - [2, 2]
+  #       - [3, 3]
+  #     input_channel_keys:
+  #       - "net.encoder.lifting"
+  #       - "net.pointwise_mlp.0"
+  is_finetune: False
+  val_interval: 3
+  sample_interval: 100
+  clip_grad: True
+  clip_grad_max_norm: 1.0
+  norm_torchvision: True
+  denorm_enhanced_vis: True
+
+###################
+## Log params
+log_dir: "model_checkpoints/diffusion_Re750_2/"
+
+###################
+## wandb params -- optional (for consistency with neural operator config)
+wandb_params:
+  wandb_dir: "model_checkpoints/diffusion_Re750_2/"
+  wandb_project: "NODs_Diffusion"
+  wandb_group: "Re1000"
+  wandb_num_plots: 1
+  wandb_plot_freq: 3

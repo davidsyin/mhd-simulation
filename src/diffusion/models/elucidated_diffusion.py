@@ -1,11 +1,12 @@
 from math import sqrt
-from typing import Tuple, Optional, List, Union, Dict, Any, Callable
+from types import SimpleNamespace
+from typing import Optional, Union, Dict, Any
 import torch
-from torch import nn, einsum
+from torch import nn
 import torch.nn.functional as F
 
 from tqdm import tqdm
-from einops import rearrange, repeat, reduce
+from einops import rearrange, reduce
 
 from ..utils import (
     exists,
@@ -13,8 +14,8 @@ from ..utils import (
     log,
 )
 from .diffusion_factory import register_diffusion_model
-from .backbones.unet import UNet
 
+from ...utils.fourier_utils import create_wavenumbers, compute_derivative, compute_laplacian, lowpass_filter
 
 class ElucidatedDiffusion(nn.Module):
     """
@@ -46,6 +47,8 @@ class ElucidatedDiffusion(nn.Module):
         S_tmin: float = 0.05,
         S_tmax: float = 50,
         S_noise: float = 1.003,
+        gaot_input_size: int = 9,
+        physics_loss_filter_cutoff: Optional[float] = 0.2,
     ):
         """
         Initialize the Elucidated Diffusion model.
@@ -67,11 +70,12 @@ class ElucidatedDiffusion(nn.Module):
             S_noise: Noise scale for stochastic sampling
         """
         super().__init__()
-        self.self_condition = net.self_condition
+        self.self_condition = True
         self.net = net
 
         self.channels = channels
         self.image_size = image_size
+        self.gaot_input_size = gaot_input_size
 
         self.sigma_min = sigma_min
         self.sigma_max = sigma_max
@@ -84,11 +88,119 @@ class ElucidatedDiffusion(nn.Module):
         self.S_tmin = S_tmin
         self.S_tmax = S_tmax
         self.S_noise = S_noise
+        self.physics_loss_filter_cutoff = physics_loss_filter_cutoff
+
+        self.register_buffer("mesh", self._make_mesh(), persistent=False)
 
     @property
     def device(self) -> torch.device:
         """Get the device on which the model parameters are stored."""
         return next(self.net.parameters()).device
+
+    @property
+    def num_points(self) -> int:
+        """Number of flattened spatial points in one square image array."""
+        return self.image_size * self.image_size
+
+    def _is_array_image(self, images: torch.Tensor) -> bool:
+        """Return True for the public array representation: (batch, points, channels)."""
+        return images.ndim == 3
+
+    def _make_mesh(self) -> torch.Tensor:
+        """Create the DINO output mesh as a flattened 128x128 unit-square array."""
+        coords = torch.linspace(-1.0, 1.0, self.image_size, dtype=torch.float32)
+        xx, yy = torch.meshgrid(coords, coords, indexing="ij")
+        return torch.stack((xx, yy), dim=-1).reshape(self.num_points, 2)
+
+    def _assert_valid_image_array(self, images: torch.Tensor) -> None:
+        # print("images", images.shape)
+        """Validate an image represented as (batch, 128*128, channels)."""
+        assert images.ndim == 3, (
+            "images must be represented as arrays with shape "
+            f"(batch, {self.num_points}, {self.channels})"
+        )
+
+        batch_size, num_points, channels = images.shape
+        assert batch_size > 0, "batch dimension must be non-empty"
+        assert num_points == self.num_points, (
+            f"point-array image must have {self.num_points} points, got {num_points}"
+        )
+        assert channels == self.channels, "mismatch of image channels"
+
+    def _mesh_for_batch(
+        self, batch_size: int, device: torch.device, dtype: torch.dtype
+    ) -> torch.Tensor:
+        """Expand the stored mesh to (batch, points, 2) for GAOT query points."""
+        return (
+            self.mesh.to(device=device, dtype=dtype)
+            .unsqueeze(0)
+            .expand(batch_size, -1, -1)
+        )
+
+    def _prepare_condition_features(
+        self, self_cond: torch.Tensor, batch_size: int, device: torch.device
+    ) -> torch.Tensor:
+        """Validate condition features containing initial-condition and PINO output."""
+        if self_cond is None:
+            raise ValueError(
+                "GAOT conditioning is required. Pass initial-condition and PINO "
+                "features shaped "
+                f"(batch, {self.num_points}, features)."
+            )
+
+        if self_cond.device != device:
+            self_cond = self_cond.to(device)
+
+        if self_cond.ndim != 3:
+            raise ValueError(
+                "GAOT conditioning must have shape "
+                f"(batch, {self.num_points}, features), "
+                f"got {tuple(self_cond.shape)}"
+            )
+
+        if self_cond.shape[0] != batch_size:
+            raise ValueError(
+                f"GAOT conditioning batch {self_cond.shape[0]} does not match "
+                f"image batch {batch_size}."
+            )
+        if self_cond.shape[1] != self.num_points:
+            raise ValueError(
+                f"GAOT conditioning must have {self.num_points} points, "
+                f"got {self_cond.shape[1]}."
+            )
+
+        return self_cond
+
+    def _prepare_gaot_input_array(
+        self,
+        self_cond: torch.Tensor,
+        noised_images: torch.Tensor,
+        sigma: torch.Tensor,
+        batch_size: int,
+        device: torch.device,
+    ) -> torch.Tensor:
+        """Build GAOT input_array with 5 per-point features."""
+        condition = self._prepare_condition_features(self_cond, batch_size, device)
+        # condition = self_cond
+        scaled_noised_images = self.c_in(sigma.view(batch_size, 1, 1)) * noised_images
+        noise_level = self.c_noise(sigma).view(batch_size, 1, 1).expand(
+            -1, self.num_points, -1
+        )
+
+        # print(scaled_noised_images.shape)
+        input_array = torch.cat([condition, scaled_noised_images, noise_level], dim=2)
+        # print(condition.shape, scaled_noised_images.shape, noise_level.shape)
+        if input_array.shape[-1] != self.gaot_input_size:
+            raise ValueError(
+                "GAOT diffusion input_array must contain "
+                f"{self.gaot_input_size} features: initial condition, PINO output, "
+                f"noised images, and noise level. Got {input_array.shape[-1]} "
+                f"features from condition={condition.shape[-1]}, "
+                f"noised_images={noised_images.shape[-1]}, noise_level=1."
+            )
+
+        # print(input_array[0,0])
+        return input_array
 
     def c_skip(self, sigma: Union[torch.Tensor, float]) -> torch.Tensor:
         """
@@ -152,9 +264,14 @@ class ElucidatedDiffusion(nn.Module):
         sigma: Union[torch.Tensor, float],
         self_cond: Optional[torch.Tensor] = None,
         clamp: bool = False,
+        output_query_points = None
     ) -> torch.Tensor:
         """
         Apply the preconditioned network forward pass.
+
+        Public tensors are arrays shaped (batch, 128*128, channels). This method
+        calls GAOT with the concatenated per-point features as input_array and
+        the mesh as query_points.
 
         Implements equation (7) from the paper: D_θ(x, σ) = c_skip(σ)·x + c_out(σ)·F_θ(c_in(σ)·x, c_noise(σ))
 
@@ -167,15 +284,26 @@ class ElucidatedDiffusion(nn.Module):
         Returns:
             Denoised image prediction
         """
+        self._assert_valid_image_array(noised_images)
+
         batch, device = noised_images.shape[0], noised_images.device
 
         if isinstance(sigma, float):
             sigma = torch.full((batch,), sigma, device=device)
 
-        padded_sigma = rearrange(sigma, "b -> b 1 1 1")
+        padded_sigma = rearrange(sigma, "b -> b 1 1")
 
-        net_out = self.net(
-            self.c_in(padded_sigma) * noised_images, self.c_noise(sigma), self_cond
+        # print(self_cond.shape, noised_images.shape, sigma.shape)
+        # print(torch.std(self_cond[0,:,0]), torch.std(self_cond[0,:,1]))
+        input_array = self._prepare_gaot_input_array(
+            self_cond, noised_images, sigma, batch, device
+        )
+
+        query_points = self._mesh_for_batch(batch, device, noised_images.dtype)
+        net_out = self.net.forward_points(
+            query_points=query_points,
+            input_array=input_array,
+            output_query_points=output_query_points,
         )
 
         out = (
@@ -220,13 +348,19 @@ class ElucidatedDiffusion(nn.Module):
         self_cond: torch.Tensor,
         batch_size: Optional[int] = None,
         num_sample_steps: Optional[int] = None,
-        clamp: bool = True,
+        clamp: bool = False,
     ) -> torch.Tensor:
         """
         Generate samples using the standard sampling procedure.
 
+        This copy represents generated images as point arrays, so `self_cond`
+        should be shaped (batch, 128*128, channels), and the returned samples
+        have the same array shape. Internally, sampling noise stays in that
+        array layout and is passed to GAOT through `preconditioned_network_forward`.
+
         Args:
-            self_cond: Self-conditioning input
+            self_cond: GAOT condition features containing the initial condition
+                and PINO output
             batch_size: Number of samples to generate (default: derived from self_cond)
             num_sample_steps: Number of sampling steps (default: self.num_sample_steps)
             clamp: Whether to clamp final outputs to [-1, 1]
@@ -235,9 +369,10 @@ class ElucidatedDiffusion(nn.Module):
             Generated image samples
         """
         batch_size = self_cond.shape[0]
+        self._prepare_condition_features(self_cond, batch_size, self_cond.device)
         num_sample_steps = default(num_sample_steps, self.num_sample_steps)
 
-        shape = (batch_size, self.channels, self.image_size, self.image_size)
+        shape = (batch_size, self.num_points, self.channels)
 
         sigmas = self.sample_schedule(num_sample_steps)
 
@@ -285,18 +420,25 @@ class ElucidatedDiffusion(nn.Module):
 
             images = images_next
 
-        images = images.clamp(-1.0, 1.0)
+        if clamp:
+            images = images.clamp(-1.0, 1.0)
         return images
-
+    
     @torch.no_grad()
     def sample_using_dpmpp(
         self,
         self_cond: torch.Tensor,
         batch_size: Optional[int] = None,
         num_sample_steps: Optional[int] = None,
+        clamp: bool = False,
     ) -> torch.Tensor:
         """
         Generate samples using the DPM++ solver.
+
+        This method now accepts and returns flattened image arrays shaped
+        (batch, 128*128, channels). Each solver update operates on that array
+        representation; the denoising network conversion is isolated to
+        `preconditioned_network_forward`.
 
         Implements the DPM++ solver from "DPM-Solver: A Fast ODE Solver for Diffusion
         Probabilistic Model Sampling in Around 10 Steps" for improved sampling quality.
@@ -305,7 +447,8 @@ class ElucidatedDiffusion(nn.Module):
         https://arxiv.org/abs/2211.01095
 
         Args:
-            self_cond: Self-conditioning input
+            self_cond: GAOT condition features containing the initial condition
+                and PINO output
             batch_size: Number of samples to generate (default: derived from self_cond)
             num_sample_steps: Number of sampling steps (default: self.num_sample_steps)
 
@@ -313,6 +456,7 @@ class ElucidatedDiffusion(nn.Module):
             Generated image samples
         """
         batch_size = self_cond.shape[0]
+        self._prepare_condition_features(self_cond, batch_size, self_cond.device)
         device, num_sample_steps = (
             self.device,
             default(num_sample_steps, self.num_sample_steps),
@@ -320,15 +464,21 @@ class ElucidatedDiffusion(nn.Module):
 
         sigmas = self.sample_schedule(num_sample_steps)
 
-        shape = (batch_size, self.channels, self.image_size, self.image_size)
+        query_points = self._mesh_for_batch(batch_size, device, self_cond.dtype)
+        output_query_points = query_points
+        
+        shape = (batch_size, self.num_points, self.channels)
         images = sigmas[0] * torch.randn(shape, device=device)
 
         sigma_fn = lambda t: t.neg().exp()
         t_fn = lambda sigma: sigma.log().neg()
 
         old_denoised = None
+
         for i in tqdm(range(len(sigmas) - 1)):
-            denoised = self.preconditioned_network_forward(images, sigmas[i].item())
+            denoised = self.preconditioned_network_forward(
+                images, sigmas[i].item(), self_cond, clamp=clamp, output_query_points=output_query_points
+            )
             t, t_next = t_fn(sigmas[i]), t_fn(sigmas[i + 1])
             h = t_next - t
 
@@ -345,7 +495,8 @@ class ElucidatedDiffusion(nn.Module):
             ).expm1() * denoised_d
             old_denoised = denoised
 
-        images = images.clamp(-1.0, 1.0)
+        if clamp:
+            images = images.clamp(-1.0, 1.0)
         return images
 
     def loss_weight(self, sigma: torch.Tensor) -> torch.Tensor:
@@ -378,15 +529,78 @@ class ElucidatedDiffusion(nn.Module):
             self.P_mean + self.P_std * torch.randn((batch_size,), device=self.device)
         ).exp()
 
+    def laplacian(self, psi: torch.Tensor, kx: torch.Tensor, ky: torch.Tensor):
+        psi_h = torch.fft.rfftn(psi, dim=(-2, -1))
+        while kx.ndim > psi_h.ndim:
+            kx = kx.squeeze(0)
+            ky = ky.squeeze(0)
+        psi_lap_h = compute_laplacian(psi_h, kx, ky)
+        return torch.fft.irfftn(psi_lap_h, s=psi.shape[-2:], dim=(-2, -1))
+        
+    def physics_loss(
+        self, psi: torch.Tensor, psi_pred: torch.Tensor, A: torch.Tensor, A_pred: torch.Tensor
+    ):
+        nx, ny = A.shape[-2:]
+        kx, ky, kx_first, ky_first = create_wavenumbers(
+            nx, ny, 1, 1, A.device, dtype=A.dtype
+        )
+
+        A = lowpass_filter(A, cutoff_max=0.15)
+        A_pred = lowpass_filter(A_pred, cutoff_max=0.15)
+
+        psi = lowpass_filter(psi, cutoff_max=0.15)
+        # A = self.lowpass_filter(A)
+        psi_pred = lowpass_filter(psi_pred, cutoff_max=0.15)
+        # A_pred = self.lowpass_filter(A_pred)
+
+        psi_h = torch.fft.rfftn(psi, dim=(-2,-1))
+        psi_pred_h = torch.fft.rfftn(psi_pred, dim=(-2,-1))
+
+        vx = -torch.fft.irfftn(compute_derivative(psi_h, ky_first), dim=[-2, -1], s=(nx,ny))
+        vy = torch.fft.irfftn(compute_derivative(psi_h, kx_first), dim=[-2, -1], s=(nx,ny))
+        
+        vx_pred = -torch.fft.irfftn(compute_derivative(psi_pred_h, ky_first), dim=[-2, -1], s=(nx,ny))
+        vy_pred = torch.fft.irfftn(compute_derivative(psi_pred_h, kx_first), dim=[-2, -1], s=(nx,ny))
+
+        mean_vx = torch.mean(vx)
+        mean_vy = torch.mean(vy)
+        std_vx = torch.std(vx)
+        std_vy = torch.std(vy)
+        
+        vx = (vx-mean_vx) / std_vx
+        vy = (vy-mean_vy) / std_vy
+        vx_pred = (vx_pred-mean_vx) / std_vx
+        vy_pred = (vy_pred-mean_vy) / std_vy
+        
+        vx_loss = torch.mean((vx_pred-vx)**2, dim=(-2,-1))
+        vy_loss = torch.mean((vy_pred-vy)**2, dim=(-2,-1))
+
+        j = -self.laplacian(A, kx, ky)   # j=dB_x/dy - dB_y/dx
+        j_pred = -self.laplacian(A_pred, kx, ky)
+
+        mean_j = torch.mean(j)
+        std_j = torch.std(j)
+        j = (j-mean_j)/std_j
+        j_pred = (j_pred-mean_j)/std_j
+        j_loss = torch.mean((j_pred - j) ** 2, dim=(-2,-1))
+
+        return 0.1*j_loss+0.45*vx_loss+0.45*vy_loss
+        
+
     def forward(
         self, images: torch.Tensor, self_cond: Optional[torch.Tensor] = None
     ) -> torch.Tensor:
         """
         Forward pass for training.
 
+        Training inputs are now expected as arrays shaped
+        (batch, 128*128, channels). Noise is added in this point-array layout,
+        and GAOT uses the DINO mesh plus the concatenated condition/noisy/noise
+        feature array.
+
         Args:
             images: Clean input images
-            self_cond: Optional self-conditioning input
+            self_cond: Required PINO outputs
 
         Returns:
             Mean loss value
@@ -394,33 +608,43 @@ class ElucidatedDiffusion(nn.Module):
         Raises:
             AssertionError: If image dimensions don't match expected size
         """
-        batch_size, c, h, w, device, image_size, channels = (
-            *images.shape,
-            images.device,
-            self.image_size,
-            self.channels,
-        )
+        self._assert_valid_image_array(images)
 
-        assert (
-            h == image_size and w == image_size
-        ), f"height and width of image must be {image_size}"
-        assert c == channels, "mismatch of image channels"
-
-        images = images
+        batch_size = images.shape[0]
 
         sigmas = self.noise_distribution(batch_size)
-        padded_sigmas = rearrange(sigmas, "b -> b 1 1 1")
+        padded_sigmas = rearrange(sigmas, "b -> b 1 1")
 
         noise = torch.randn_like(images)
 
         noised_images = images + padded_sigmas * noise
+        # torch.save(noised_images, "noised.pt")
 
         denoised = self.preconditioned_network_forward(noised_images, sigmas, self_cond)
 
-        losses = F.mse_loss(denoised, images, reduction="none")
+        target = rearrange(
+            images, "b (h w) c -> b h w c", h=self.image_size, w=self.image_size
+        )
+        pred = rearrange(
+            denoised, "b (h w) c -> b h w c", h=self.image_size, w=self.image_size
+        )
+        # print(images.shape, denoised.shape)
+        losses = F.mse_loss(denoised[...], images[...], reduction="none")
         losses = reduce(losses, "b ... -> b", "mean")
 
-        losses = losses * self.loss_weight(sigmas)
+        # print("losses", losses, self.physics_loss(
+        #     target[..., 0], pred[..., 0]
+        # ).reshape(losses.shape))
+        # print(losses, self.c_skip(sigmas), self.loss_weight(sigmas))
+        losses += 0.6*self.physics_loss(
+            target[..., 0], pred[..., 0], target[..., 1], pred[..., 1], 
+        ).reshape(losses.shape)
+
+        losses += 0.1*F.mse_loss(lowpass_filter(target[..., 1], cutoff_min=0.02), lowpass_filter(pred[..., 1], cutoff_min=0.02))
+        # print(losses, self.loss_weight(sigmas))
+        # print(1/0)
+        losses = (losses * self.loss_weight(sigmas))
+
 
         return losses.mean()
 
@@ -428,10 +652,11 @@ class ElucidatedDiffusion(nn.Module):
 @register_diffusion_model(model_type="elucidated")
 def elucidated_diffusion_default(model_params: Dict[str, Any]) -> ElucidatedDiffusion:
     """
-    Create a default ElucidatedDiffusion model with UNet backbone.
+    Create a default ElucidatedDiffusion model with a GAOT backbone.
 
-    This function constructs a UNet backbone with appropriate parameters
-    from the model_params dictionary and wraps it in an ElucidatedDiffusion model.
+    This function constructs a GAOT model that consumes DINO-style point arrays:
+    the mesh is passed as query_points, and the initial condition, PINO output,
+    noised images, and noise level are concatenated into input_array.
 
     Args:
         model_params: Dictionary of model parameters
@@ -439,25 +664,26 @@ def elucidated_diffusion_default(model_params: Dict[str, Any]) -> ElucidatedDiff
     Returns:
         Initialized ElucidatedDiffusion model
     """
+    from GAOT.src.model.gaot import GAOT
+    from GAOT.src.model.layers.attn import AttentionConfig, TransformerConfig
+    from GAOT.src.model.layers.magno import MAGNOConfig
 
-    unet = UNet(
-        dim=model_params.get("base_dim", 64),
-        dim_mults=model_params.get("dim_mults", (1, 2, 4, 8)),
-        channels=model_params.get("channels", 3),
-        self_condition=model_params.get("self_condition", True),
-        learned_variance=model_params.get("learned_variance", False),
-        learned_sinusoidal_cond=model_params.get("learned_sinusoidal_cond", False),
-        random_fourier_features=model_params.get("random_fourier_features", False),
-        flash_attn=model_params.get("flash_attn", False),
-        attn_heads=model_params.get("attn_heads", 4),
-        attn_dim_head=model_params.get("attn_dim_head", 32),
-        dropout=model_params.get("dropout", 0.0),
+    channels = model_params.get("channels", 2)
+    gaot_input_size = model_params.get("gaot_input_size", 9)
+    gaot_config = _make_gaot_config(
+        model_params, MAGNOConfig, AttentionConfig, TransformerConfig
+    )
+
+    gaot = GAOT(
+        input_size=gaot_input_size,
+        output_size=model_params.get("output_size", channels),
+        config=gaot_config,
     )
 
     model = ElucidatedDiffusion(
-        unet,
+        gaot,
         image_size=model_params.get("image_size", 128),
-        channels=model_params.get("channels", 3),
+        channels=channels,
         num_sample_steps=model_params.get("num_sample_steps", 32),
         sigma_min=model_params.get("sigma_min", 0.002),
         sigma_max=model_params.get("sigma_max", 80),
@@ -469,6 +695,127 @@ def elucidated_diffusion_default(model_params: Dict[str, Any]) -> ElucidatedDiff
         S_tmin=model_params.get("S_tmin", 0.05),
         S_tmax=model_params.get("S_tmax", 50),
         S_noise=model_params.get("S_noise", 1.003),
+        gaot_input_size=gaot_input_size,
+        physics_loss_filter_cutoff=model_params.get("physics_loss_filter_cutoff", 0.18),
     )
 
     return model
+
+
+def _make_gaot_config(
+    model_params: Dict[str, Any],
+    magno_config_cls,
+    attention_config_cls,
+    transformer_config_cls,
+) -> SimpleNamespace:
+    """Build the GAOT config namespace expected by GAOT.__init__."""
+    magno_params = model_params.get("magno", {})
+    transformer_params = model_params.get("transformer", {})
+    attn_params = transformer_params.get("attn_config", {})
+
+    magno_config = magno_config_cls(
+        coord_dim=model_params.get("coord_dim", magno_params.get("coord_dim", 2)),
+        radius=model_params.get("radius", magno_params.get("radius", 0.033)),
+        hidden_size=model_params.get(
+            "magno_hidden_size",
+            magno_params.get("hidden_size", model_params.get("n_hidden", 64)),
+        ),
+        mlp_layers=model_params.get(
+            "magno_mlp_layers",
+            magno_params.get("mlp_layers", model_params.get("mlp_layers", 3)),
+        ),
+        lifting_channels=model_params.get(
+            "lifting_channels", magno_params.get("lifting_channels", 64)
+        ),
+        scales=magno_params.get("scales", model_params.get("scales", [1.0])),
+        use_scale_weights=magno_params.get(
+            "use_scale_weights", model_params.get("use_scale_weights", False)
+        ),
+        use_attention=magno_params.get(
+            "use_attention", model_params.get("use_attention", True)
+        ),
+        attention_type=magno_params.get(
+            "attention_type", model_params.get("attention_type", "cosine")
+        ),
+        use_geoembed=magno_params.get(
+            "use_geoembed", model_params.get("use_geoembed", True)
+        ),
+        embedding_method=magno_params.get(
+            "embedding_method", model_params.get("embedding_method", "statistical")
+        ),
+        pooling=magno_params.get("pooling", model_params.get("pooling", "max")),
+        transform_type=magno_params.get(
+            "transform_type", model_params.get("transform_type", "linear")
+        ),
+        sampling_strategy=magno_params.get(
+            "sampling_strategy", model_params.get("sampling_strategy")
+        ),
+        max_neighbors=magno_params.get(
+            "max_neighbors", model_params.get("max_neighbors")
+        ),
+        sample_ratio=magno_params.get("sample_ratio", model_params.get("sample_ratio")),
+        node_embedding=magno_params.get(
+            "node_embedding", model_params.get("node_embedding", False)
+        ),
+        neighbor_search_method=magno_params.get(
+            "neighbor_search_method",
+            model_params.get("neighbor_search_method", "auto"),
+        ),
+        use_torch_scatter=magno_params.get(
+            "use_torch_scatter", model_params.get("use_torch_scatter", True)
+        ),
+        neighbor_strategy=magno_params.get(
+            "neighbor_strategy", model_params.get("neighbor_strategy", "radius")
+        ),
+        precompute_edges=magno_params.get(
+            "precompute_edges", model_params.get("precompute_edges", False)
+        ),
+    )
+
+    n_heads = model_params.get("n_head", model_params.get("n_heads", 8))
+    attn_config = attention_config_cls(
+        num_heads=attn_params.get(
+            "num_heads", n_heads
+        ),
+        num_kv_heads=attn_params.get(
+            "num_kv_heads",
+            model_params.get("num_kv_heads", n_heads),
+        ),
+        use_conditional_norm=attn_params.get("use_conditional_norm", False),
+        cond_norm_hidden_size=attn_params.get("cond_norm_hidden_size", 4),
+        atten_dropout=attn_params.get(
+            "atten_dropout", model_params.get("attn_dropout", 0.0)
+        ),
+    )
+
+    transformer_config = transformer_config_cls(
+        patch_size=transformer_params.get(
+            "patch_size", model_params.get("patch_size", 2)
+        ),
+        hidden_size=transformer_params.get(
+            "hidden_size", model_params.get("transformer_hidden_size", 256)
+        ),
+        use_attn_norm=transformer_params.get("use_attn_norm", True),
+        use_ffn_norm=transformer_params.get("use_ffn_norm", True),
+        norm_eps=transformer_params.get("norm_eps", 1e-6),
+        num_layers=transformer_params.get(
+            "num_layers", model_params.get("n_layers", 3)
+        ),
+        positional_embedding=transformer_params.get(
+            "positional_embedding", model_params.get("positional_embedding", "absolute")
+        ),
+        use_long_range_skip=transformer_params.get("use_long_range_skip", True),
+        ffn_multiplier=transformer_params.get("ffn_multiplier", 4),
+        attn_config=attn_config,
+    )
+
+    return SimpleNamespace(
+        name=model_params.get("gaot_name", "gaot"),
+        latent_tokens_size=tuple(model_params.get("latent_tokens_size", (64, 64))),
+        use_pointwise_conditioning=model_params.get(
+            "use_pointwise_conditioning", False
+        ),
+        pointwise_hidden_size=model_params.get("pointwise_hidden_size"),
+        pointwise_mlp_layers=model_params.get("pointwise_mlp_layers", 3),
+        args=SimpleNamespace(magno=magno_config, transformer=transformer_config),
+    )

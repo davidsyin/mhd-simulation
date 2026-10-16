@@ -40,8 +40,12 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
 
         forward_start = time.time()
         x = x.contiguous()  # Ensure input is contiguous for better performance
+        # print(model)
+        # print("x", x.shape, torch.mean(x[0,3,0]), torch.std(x[0,3,0]), torch.mean(x[0,4,0]), torch.std(x[0,4,0]))
         pred = model(x)
-
+        # torch.save(x, "x.pt")
+        # torch.save(pred, "pred.pt")
+        
         if use_physics_loss:
             loss = criterion(train_loader, pred, y, x)
         else:
@@ -51,7 +55,7 @@ def train_epoch(model, train_loader, optimizer, criterion, device):
 
         backward_start = time.time()
         loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
         optimizer.step()
         backward_time += time.time() - backward_start
 
